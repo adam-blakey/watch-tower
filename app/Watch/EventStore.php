@@ -986,9 +986,6 @@ class EventStore
         return is_scalar($value) ? filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
     }
 
-    /**
-     * Masks credential-bearing request headers so they never sit in the database.
-     */
     private function redactSensitiveHeaders(mixed $headers): mixed
     {
         if (! is_array($headers)) {

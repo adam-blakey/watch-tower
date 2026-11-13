@@ -6,10 +6,6 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Cheap defence in depth for a dashboard that renders attacker-influenced telemetry. No CSP: it would have to
- * allow the Vite dev server and Inertia's inline bootstrap, so the risk of breaking assets outweighs the gain.
- */
 class SecurityHeaders
 {
     public function handle(Request $request, Closure $next): Response
