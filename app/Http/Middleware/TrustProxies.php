@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Middleware\TrustProxies as Middleware;
+use Illuminate\Http\Request;
 
 class TrustProxies extends Middleware
 {
@@ -29,5 +30,17 @@ class TrustProxies extends Middleware
         ));
 
         return $proxies === [] ? null : array_values($proxies);
+    }
+
+    /**
+     * Trust only the peer that connected, not every address.
+     *
+     * The framework trusts 0.0.0.0/0 for "*", which makes every X-Forwarded-For hop
+     * trusted, so the client-supplied leftmost entry wins and throttles can be dodged.
+     * Trusting just REMOTE_ADDR yields the address the proxy itself observed.
+     */
+    protected function setTrustedProxyIpAddressesToTheCallingIp(Request $request): void
+    {
+        $request->setTrustedProxies([(string) $request->server->get('REMOTE_ADDR')], $this->getTrustedHeaderNames());
     }
 }
