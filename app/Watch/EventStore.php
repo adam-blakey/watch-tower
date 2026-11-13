@@ -121,7 +121,7 @@ class EventStore
                 'terminating_ms' => $this->fractionalMsOrNull($data['terminating_ms'] ?? null),
             ], fn (mixed $value): bool => $value !== null),
             'user_agent' => $this->stringOrNull($data['user_agent'] ?? null),
-            'headers' => $data['headers'] ?? null,
+            'headers' => $this->redactSensitiveHeaders($data['headers'] ?? null),
             'request_data' => $data['request_data'] ?? null,
             'response_data' => $data['response_data'] ?? null,
             'is_stub' => false,
@@ -984,5 +984,23 @@ class EventStore
     private function boolOrNull(mixed $value): ?bool
     {
         return is_scalar($value) ? filter_var($value, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) : null;
+    }
+
+    /**
+     * Masks credential-bearing request headers so they never sit in the database.
+     */
+    private function redactSensitiveHeaders(mixed $headers): mixed
+    {
+        if (! is_array($headers)) {
+            return $headers;
+        }
+
+        foreach ($headers as $name => $value) {
+            if (is_string($name) && preg_match('/^(authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-csrf-token|x-xsrf-token)$/i', $name)) {
+                $headers[$name] = '[redacted]';
+            }
+        }
+
+        return $headers;
     }
 }

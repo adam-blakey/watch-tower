@@ -237,7 +237,7 @@ class IssuesController extends Controller
             'priority' => ['sometimes', 'in:none,low,medium,high'],
             'description' => ['sometimes', 'nullable', 'string', 'max:65535'],
             'assigned_to_user_id' => ['sometimes', 'nullable', 'integer', 'exists:users,id'],
-            'linear_issue_url' => ['sometimes', 'nullable', 'url', 'max:500'],
+            'linear_issue_url' => ['sometimes', 'nullable', 'url:http,https', 'max:500'],
             'subscribe' => ['sometimes', 'boolean'],
         ]);
 
