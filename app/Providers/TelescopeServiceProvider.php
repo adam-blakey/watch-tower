@@ -36,6 +36,11 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
      */
     protected function hideSensitiveRequestDetails(): void
     {
+        // Credentials are hidden in every environment, like the `authorization` header Telescope hides by default:
+        // the legacy ingest API key header and the ingest token /api/agent-auth returns.
+        Telescope::hideRequestHeaders(['x-api-key']);
+        Telescope::hideResponseParameters(['token']);
+
         if ($this->app->environment('local')) {
             return;
         }
