@@ -158,3 +158,45 @@ it('rejects an unknown event type on the sync endpoint', function () {
         ->assertStatus(422)
         ->assertJsonValidationErrors(['events.0.type']);
 });
+
+it('rejects a body larger than the ingest size limit with 413', function () {
+    Queue::fake();
+    config()->set('watch.ingest.max_decoded_bytes', 1024);
+    Project::factory()->withApiKey('pk_test_big')->create();
+
+    $this->withHeader('Authorization', 'Bearer pk_test_big')
+        ->postJson('/api/ingest', [
+            'events' => [['type' => 'log', 'data' => ['message' => str_repeat('x', 5000)]]],
+        ])
+        ->assertStatus(413);
+
+    Queue::assertNothingPushed();
+});
+
+it('rejects a batch with more events than the configured limit', function () {
+    Queue::fake();
+    config()->set('watch.ingest.max_records', 2);
+    Project::factory()->withApiKey('pk_test_many')->create();
+
+    $this->withHeader('Authorization', 'Bearer pk_test_many')
+        ->postJson('/api/ingest', [
+            'events' => array_fill(0, 3, ['type' => 'request', 'data' => ['uri' => '/']]),
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('events');
+
+    Queue::assertNothingPushed();
+});
+
+it('still accepts a normal batch within the limits', function () {
+    Queue::fake();
+    Project::factory()->withApiKey('pk_test_ok')->create();
+
+    $this->withHeader('Authorization', 'Bearer pk_test_ok')
+        ->postJson('/api/ingest', [
+            'events' => array_fill(0, 50, ['type' => 'request', 'data' => ['uri' => '/users']]),
+        ])
+        ->assertStatus(202);
+
+    Queue::assertPushed(ProcessWatchEvent::class, 50);
+});
