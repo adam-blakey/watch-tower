@@ -534,7 +534,7 @@ describe('keeping writers out between the check and the drop', function () {
                 $query->sql === 'commit' => 'commit',
                 $query->sql === 'rollback' => 'rollback',
                 str_starts_with($query->sql, 'drop table') => 'drop',
-                str_starts_with($query->sql, 'select count(*) as aggregate') => 'count',
+                str_starts_with($query->sql, 'select count(*) as ') => 'count',
                 default => 'other',
             };
         });
