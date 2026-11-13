@@ -1,10 +1,11 @@
 <?php
 
 it('ships production-safe defaults in .env.example', function () {
-    $env = parse_ini_file(__DIR__.'/../../.env.example', false, INI_SCANNER_RAW);
+    $contents = file_get_contents(__DIR__.'/../../.env.example');
 
-    expect($env['APP_ENV'])->toBe('production')
-        ->and($env['APP_DEBUG'])->toBe('false')
-        ->and($env['SESSION_ENCRYPT'])->toBe('true')
-        ->and($env['SESSION_SECURE_COOKIE'])->toBe('true');
+    expect($contents)
+        ->toMatch('/^APP_ENV=production$/m')
+        ->toMatch('/^APP_DEBUG=false$/m')
+        ->toMatch('/^SESSION_ENCRYPT=true$/m')
+        ->toMatch('/^SESSION_SECURE_COOKIE=true$/m');
 });
