@@ -112,7 +112,7 @@ return [
     |
     | Reverse proxies or load balancers whose X-Forwarded-* headers are trusted.
     | Leave empty to trust none, which is right when the app is reachable
-    | directly. Use "*" to trust whichever peer connects (only safe when the
+    | directly. Use "*" to trust only the peer that connects, i.e. the proxy (only safe when the
     | app can be reached through the proxy alone) or a comma-separated list of
     | IP addresses and CIDR ranges, such as "10.0.0.0/8,172.16.0.0/12".
     |
