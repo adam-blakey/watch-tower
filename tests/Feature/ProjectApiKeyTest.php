@@ -288,7 +288,7 @@ it('still accepts the legacy X-API-Key header but marks it deprecated', function
 
     $this->withHeader('X-API-Key', 'pk_test_current')->postJson('/api/ingest', $body)
         ->assertAccepted()
-        ->assertHeader('Deprecation', AuthenticateIngestRequest::LEGACY_API_KEY_HEADER_DEPRECATION);
+        ->assertHeader('Deprecation', AuthenticateIngestRequest::X_API_KEY_HEADER_DEPRECATED_SINCE);
 
     $this->withHeader('Authorization', 'Bearer pk_test_current')->postJson('/api/ingest', $body)
         ->assertAccepted()

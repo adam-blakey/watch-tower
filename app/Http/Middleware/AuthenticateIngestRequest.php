@@ -9,13 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateIngestRequest
 {
-    /**
-     * When the `X-API-Key` header was deprecated (2026-11-13), as an RFC 9745 `Deprecation` date.
-     *
-     * Custom headers are more likely than `Authorization` to be written to proxy and access logs. The header is
-     * still accepted so existing agents keep working, but responses to it carry `Deprecation` so they can move.
-     */
-    public const LEGACY_API_KEY_HEADER_DEPRECATION = '@1794528000';
+    // 2026-11-13 as an RFC 9745 Deprecation date.
+    public const X_API_KEY_HEADER_DEPRECATED_SINCE = '@1794528000';
 
     /**
      * Handle an incoming request.
@@ -24,7 +19,7 @@ class AuthenticateIngestRequest
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $usesLegacyHeader = $request->bearerToken() === null;
+        $usesXApiKeyHeader = $request->bearerToken() === null;
         $apiKey = $request->bearerToken() ?? $request->header('X-API-Key');
 
         if (! $apiKey) {
@@ -45,8 +40,8 @@ class AuthenticateIngestRequest
 
         $response = $next($request);
 
-        if ($usesLegacyHeader) {
-            $response->headers->set('Deprecation', self::LEGACY_API_KEY_HEADER_DEPRECATION);
+        if ($usesXApiKeyHeader) {
+            $response->headers->set('Deprecation', self::X_API_KEY_HEADER_DEPRECATED_SINCE);
         }
 
         return $response;
