@@ -33,7 +33,8 @@ Route::post('/logout', [LoginController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
-Route::middleware('auth')->group(function () {
+// auth.session signs out every other session (and remember-me cookie) once the user's password changes.
+Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/', [DashboardController::class, 'home'])->name('home');
 
     Route::prefix('settings')->name('settings.')->group(function () {
