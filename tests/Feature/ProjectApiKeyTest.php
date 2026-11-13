@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Middleware\AuthenticateIngestRequest;
 use App\Models\Project;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
+use Laravel\Telescope\Telescope;
 
 beforeEach(function () {
     Queue::fake();
@@ -278,4 +280,22 @@ it('does not stamp a key use for a rejected key', function () {
     presentApiKey('ingest', 'pk_test_unknown');
 
     expect($project->fresh()->api_key_last_used_at)->toBeNull();
+});
+
+it('still accepts the legacy X-API-Key header but marks it deprecated', function () {
+    Project::factory()->withApiKey('pk_test_current')->create();
+    $body = ['events' => [['type' => 'request', 'data' => ['request_id' => 'req-1', 'method' => 'GET', 'uri' => '/users']]]];
+
+    $this->withHeader('X-API-Key', 'pk_test_current')->postJson('/api/ingest', $body)
+        ->assertAccepted()
+        ->assertHeader('Deprecation', AuthenticateIngestRequest::X_API_KEY_HEADER_DEPRECATED_SINCE);
+
+    $this->withHeader('Authorization', 'Bearer pk_test_current')->postJson('/api/ingest', $body)
+        ->assertAccepted()
+        ->assertHeaderMissing('Deprecation');
+});
+
+it('keeps API keys and ingest tokens out of Telescope entries', function () {
+    expect(Telescope::$hiddenRequestHeaders)->toContain('authorization', 'x-api-key')
+        ->and(Telescope::$hiddenResponseParameters)->toContain('token');
 });

@@ -9,6 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class AuthenticateIngestRequest
 {
+    // 2026-11-13 as an RFC 9745 Deprecation date.
+    public const X_API_KEY_HEADER_DEPRECATED_SINCE = '@1794528000';
+
     /**
      * Handle an incoming request.
      *
@@ -16,11 +19,12 @@ class AuthenticateIngestRequest
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $usesXApiKeyHeader = $request->bearerToken() === null;
         $apiKey = $request->bearerToken() ?? $request->header('X-API-Key');
 
         if (! $apiKey) {
             return response()->json([
-                'error' => 'Missing API key. Provide it via Authorization: Bearer header or X-API-Key.',
+                'error' => 'Missing API key. Provide it via the Authorization: Bearer header.',
             ], 401);
         }
 
@@ -34,6 +38,12 @@ class AuthenticateIngestRequest
 
         $request->attributes->set('watch_project', $project);
 
-        return $next($request);
+        $response = $next($request);
+
+        if ($usesXApiKeyHeader) {
+            $response->headers->set('Deprecation', self::X_API_KEY_HEADER_DEPRECATED_SINCE);
+        }
+
+        return $response;
     }
 }
