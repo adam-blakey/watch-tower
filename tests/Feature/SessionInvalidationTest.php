@@ -8,7 +8,7 @@ beforeEach(function () {
 
 it('signs other sessions out when you change your password, but keeps the current one', function () {
     $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
-    $oldHash = $user->getAuthPassword();
+    $otherDeviceSession = ['password_hash_web' => $user->getAuthPassword()];
 
     $this->actingAs($user)
         ->patch(route('settings.password.update'), [
@@ -20,8 +20,7 @@ it('signs other sessions out when you change your password, but keeps the curren
 
     $this->get(route('settings.profile.show'))->assertOk();
 
-    // Another device's session still carries the hash of the old password.
-    $this->withSession(['password_hash_web' => $oldHash])
+    $this->withSession($otherDeviceSession)
         ->get(route('settings.profile.show'))
         ->assertRedirect(route('login'));
 
@@ -31,7 +30,7 @@ it('signs other sessions out when you change your password, but keeps the curren
 it('signs an admin out when a super admin resets their password', function () {
     $superAdmin = User::factory()->create(['role' => User::ROLE_SUPER_ADMIN]);
     $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
-    $oldHash = $admin->getAuthPassword();
+    $oldPasswordHash = $admin->getAuthPassword();
 
     $this->actingAs($superAdmin)
         ->patch(route('settings.admins.update', $admin), [
@@ -43,7 +42,7 @@ it('signs an admin out when a super admin resets their password', function () {
         ->assertSessionHasNoErrors();
 
     $this->actingAs($admin->fresh())
-        ->withSession(['password_hash_web' => $oldHash])
+        ->withSession(['password_hash_web' => $oldPasswordHash])
         ->get(route('settings.profile.show'))
         ->assertRedirect(route('login'));
 
