@@ -33,7 +33,7 @@ Route::post('/logout', [LoginController::class, 'destroy'])
     ->middleware('auth')
     ->name('logout');
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'auth.session'])->group(function () {
     Route::get('/', [DashboardController::class, 'home'])->name('home');
 
     Route::prefix('settings')->name('settings.')->group(function () {
