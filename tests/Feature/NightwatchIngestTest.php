@@ -171,6 +171,7 @@ it('defaults to sensible ingest limits', function () {
         'max_records' => 5000,
         'rate_limit_per_minute' => 600,
         'agent_auth_per_minute' => 30,
+        'max_blob_bytes' => 256 * 1024,
     ]);
 });
 

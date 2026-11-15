@@ -18,6 +18,9 @@ return [
     |                        ingest endpoints. 0 disables the limit.
     | agent_auth_per_minute: Requests per minute, per client IP, to the
     |                        agent-auth endpoint. 0 disables the limit.
+    | max_blob_bytes:        Largest JSON-encoded size of one stored blob
+    |                        (headers, payloads, context, stacktraces...).
+    |                        Larger ones are replaced by a truncation marker.
     |
     */
 
@@ -26,6 +29,7 @@ return [
         'max_records' => (int) env('WATCH_INGEST_MAX_RECORDS', 5000),
         'rate_limit_per_minute' => (int) env('WATCH_INGEST_RATE_LIMIT_PER_MINUTE', 600),
         'agent_auth_per_minute' => (int) env('WATCH_INGEST_AGENT_AUTH_PER_MINUTE', 30),
+        'max_blob_bytes' => (int) env('WATCH_INGEST_MAX_BLOB_BYTES', 256 * 1024),
     ],
 
     /*
