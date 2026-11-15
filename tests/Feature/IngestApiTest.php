@@ -173,14 +173,13 @@ it('rejects a body larger than the ingest size limit with 413', function () {
     Queue::assertNothingPushed();
 });
 
-it('rejects a batch with more events than the configured limit', function () {
+it('rejects a batch with more than 1000 events', function () {
     Queue::fake();
-    config()->set('watch.ingest.max_records', 2);
     Project::factory()->withApiKey('pk_test_many')->create();
 
     $this->withHeader('Authorization', 'Bearer pk_test_many')
         ->postJson('/api/ingest', [
-            'events' => array_fill(0, 3, ['type' => 'request', 'data' => ['uri' => '/']]),
+            'events' => array_fill(0, 1001, ['type' => 'request', 'data' => ['uri' => '/']]),
         ])
         ->assertStatus(422)
         ->assertJsonValidationErrors('events');

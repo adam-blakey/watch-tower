@@ -34,7 +34,7 @@ class IngestBatchRequest extends FormRequest
             'app_version' => ['nullable', 'string', 'max:64'],
             'timestamp' => ['nullable', 'date'],
 
-            'events' => ['required', 'array', 'min:1', 'max:'.min(1000, (int) config('watch.ingest.max_records'))],
+            'events' => ['required', 'array', 'min:1', 'max:1000'],
             'events.*.type' => ['required', 'string', Rule::in(EventStore::TYPES)],
             'events.*.id' => ['nullable', 'string', 'max:64'],
             'events.*.data' => ['required', 'array'],
