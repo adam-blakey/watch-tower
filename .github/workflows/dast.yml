@@ -1,0 +1,94 @@
+name: "DAST"
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 6'
+
+permissions:
+  contents: read
+
+jobs:
+  zap:
+    name: ZAP baseline scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Build the app image
+      run: docker build -t watch-tower .
+
+    - name: Start the app
+      run: |
+        docker run -d --name watch-tower -p 8080:8080 \
+          -e APP_KEY="base64:$(openssl rand -base64 32)" \
+          -e APP_URL=http://localhost:8080 \
+          -e AUTORUN_ENABLED=true \
+          watch-tower
+        curl --fail --silent --show-error --retry 30 --retry-all-errors --retry-delay 2 http://localhost:8080/up
+
+    - name: Run ZAP baseline scan
+      uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+      with:
+        target: http://localhost:8080
+        rules_file_name: .zap/rules.tsv
+        allow_issue_writing: false
+
+    - name: Report logged-out findings in the job summary
+      if: always() && hashFiles('report_md.md') != ''
+      run: |
+        {
+          echo "# Logged out"
+          sed '/^## Alert Detail/,$d' report_md.md
+          echo "Alert details are in the \`zap_scan\` artifact."
+        } >> "$GITHUB_STEP_SUMMARY"
+        rm report_md.md
+
+    # The seeded password is public, which is fine for a throwaway container on the runner.
+    - name: Log in as the super admin
+      run: |
+        url=http://localhost:8080
+        jar=$(mktemp)
+        docker exec watch-tower php artisan db:seed --class=SuperAdminSeeder --force
+
+        curl -sf -c "$jar" -b "$jar" -o /dev/null "$url/login"
+        # The login form is a React page: the CSRF token is the URL-encoded XSRF-TOKEN cookie, sent back decoded in a header.
+        xsrf=$(awk '$6 == "XSRF-TOKEN" { print $7 }' "$jar")
+        xsrf=$(printf '%b' "${xsrf//%/\\x}")
+        curl -sf -c "$jar" -b "$jar" -o /dev/null "$url/login" -H "X-XSRF-TOKEN: $xsrf" \
+          --data-urlencode email=super@admin.test --data-urlencode password=12345678
+        test "$(curl -s -o /dev/null -w '%{http_code}' -b "$jar" "$url/settings/profile")" = 200
+
+        cookie=$(sed 's/^#HttpOnly_//' "$jar" | awk '!/^#/ && NF == 7 { printf "%s%s=%s", sep, $6, $7; sep = "; " }')
+        echo "::add-mask::$cookie"
+        echo "ZAP_AUTH_HEADER_VALUE=$cookie" >> "$GITHUB_ENV"
+
+    # The spider only follows links, so it cannot log itself out or change data with the forms it finds.
+    - name: Run ZAP baseline scan as the super admin
+      uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+      env:
+        ZAP_AUTH_HEADER: Cookie
+        ZAP_AUTH_HEADER_SITE: localhost:8080
+      with:
+        target: http://localhost:8080/settings/profile
+        rules_file_name: .zap/rules.tsv
+        cmd_options: -z "-config spider.postform=false"
+        allow_issue_writing: false
+        artifact_name: zap_scan_admin
+
+    - name: Report admin findings in the job summary
+      if: always() && hashFiles('report_md.md') != ''
+      run: |
+        {
+          echo "# Logged in as the super admin"
+          sed '/^## Alert Detail/,$d' report_md.md
+          echo "Alert details are in the \`zap_scan_admin\` artifact."
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Show app logs
+      if: failure()
+      run: docker logs watch-tower

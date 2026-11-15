@@ -1,0 +1,106 @@
+# Kept out of the CodeQL matrix so each scanner runs once per trigger.
+# Inputs with defaults (lock, format, ...) are left out of `with:`: an empty value overrides the default and breaks the tool.
+name: "PHP Security"
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '0 4 * * 6'
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-check:
+    name: Composer dependency vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Check composer.lock for known vulnerabilities
+      id: security-check
+      uses: symfonycorp/security-checker-action@258311ef7ac571f1310780ef3d79fc5abef642b5 # v5
+
+    - name: Report findings in the job summary
+      if: always() && steps.security-check.outputs.vulns != ''
+      env:
+        VULNS: ${{ steps.security-check.outputs.vulns }}
+      run: |
+        {
+          echo "## Composer dependency vulnerabilities"
+          echo
+          if [ "$(jq 'length' <<< "$VULNS")" = "0" ]; then
+            echo ":white_check_mark: No known vulnerabilities found in composer.lock."
+          else
+            echo "| Package | Installed version | Advisory | CVE |"
+            echo "| --- | --- | --- | --- |"
+            jq -r '
+              to_entries[]
+              | .key as $package
+              | .value.version as $version
+              | .value.advisories[]
+              | "| \($package) | \($version) | [\(.title)](\(.link)) | \(if (.cve // "") == "" then "—" else .cve end) |"
+            ' <<< "$VULNS"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+  psalm:
+    name: Psalm taint analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+      with:
+        php-version: '8.4'
+        coverage: none
+        tools: psalm:6
+
+    - name: Install Composer dependencies
+      run: composer install --no-interaction --no-progress --prefer-dist --no-scripts
+
+    # No psalm.xml: Psalm builds its config from composer.json's autoload paths.
+    - name: Run Psalm security scan
+      run: psalm --output-format=github --taint-analysis --php-version=8.4 --report=results.sarif
+
+    # Psalm exits non-zero when it finds a taint, which is when the report matters most.
+    - name: Upload SARIF results to code scanning
+      if: ${{ !cancelled() && hashFiles('results.sarif') != '' }}
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: results.sarif
+
+  semgrep:
+    name: Semgrep scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Run Semgrep
+      run: pipx run semgrep scan --config p/php --metrics=off --sarif --output semgrep.sarif
+
+    - name: Upload SARIF results to code scanning
+      uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+      with:
+        sarif_file: semgrep.sarif
