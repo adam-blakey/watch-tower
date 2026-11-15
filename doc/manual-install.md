@@ -278,7 +278,7 @@ This project includes several Laravel dev packages — all already wired up:
 | **Laravel Boost** | MCP server for AI coding tools | configured in `boost.json` |
 | **Wayfinder** | Typed routes generated for React | `@/actions/`, `@/routes/` |
 
-> Telescope and Debugbar are intended for `APP_ENV=local`. Disable or restrict before deploying.
+> Telescope is off by default; set `TELESCOPE_ENABLED=true` in `.env` to use it. Telescope and Debugbar are intended for `APP_ENV=local`. Disable or restrict before deploying.
 
 ---
 
@@ -377,6 +377,6 @@ vite.config.ts        Vite + Wayfinder + Tailwind config
 After setup, browse to:
 
 - App: **http://localhost:8000**
-- Telescope: **http://localhost:8000/telescope**
+- Telescope (after setting `TELESCOPE_ENABLED=true`): **http://localhost:8000/telescope**
 
 Happy hacking.
