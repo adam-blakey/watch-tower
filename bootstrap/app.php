@@ -3,6 +3,7 @@
 use App\Http\Middleware\AuthenticateIngestRequest;
 use App\Http\Middleware\AuthenticateNightwatchIngest;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\TrustProxies;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // The HTML still has a preload tag for every chunk, so only the early hints for the rest are lost.
         $middleware->web(append: [
             HandleInertiaRequests::class,
+            SecurityHeaders::class,
             AddLinkHeadersForPreloadedAssets::using(10),
         ]);
 
