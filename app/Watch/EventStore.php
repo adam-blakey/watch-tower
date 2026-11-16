@@ -78,33 +78,33 @@ class EventStore
      */
     private function storeRequest(Project $project, array $data): void
     {
-        $correlationId = (string) ($data['request_id'] ?? $data['correlation_id'] ?? '');
+        $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
-        if ($correlationId === '') {
+        if ($correlationId === null) {
             return;
         }
 
-        $userIdentifier = $this->stringOrNull($data['user_id'] ?? null);
+        $userIdentifier = $this->limitedString($data['user_id'] ?? null, 255);
         $userDetails = $this->userDetails($project, $userIdentifier, $data);
 
         $values = [
-            'method' => (string) ($data['method'] ?? 'GET'),
-            'uri' => (string) ($data['uri'] ?? '/'),
-            'status_code' => $this->intOrNull($data['status_code'] ?? null),
+            'method' => $this->limitedString($data['method'] ?? null, 10) ?? 'GET',
+            'uri' => is_scalar($data['uri'] ?? null) ? (string) $data['uri'] : '/',
+            'status_code' => $this->unsignedIntOrNull($data['status_code'] ?? null, 65_535),
             'user_identifier' => $userIdentifier,
             ...$userDetails,
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
-            'db_queries_count' => (int) ($data['db_queries_count'] ?? 0),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
+            'db_queries_count' => $this->unsignedIntOrNull($data['db_queries_count'] ?? null) ?? 0,
             ...array_filter([
                 'lazy_loads' => $this->unsignedIntOrNull($data['lazy_loads'] ?? null),
                 'hydrated_models' => $this->unsignedIntOrNull($data['hydrated_models'] ?? null),
             ], fn (mixed $value): bool => $value !== null),
-            'memory_used_kb' => $this->intOrNull($data['memory_used_kb'] ?? null),
-            'memory_peak_kb' => $this->intOrNull($data['memory_peak_kb'] ?? null),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
-            'release_version' => $this->stringOrNull($data['release'] ?? null),
-            'hostname' => $this->stringOrNull($data['hostname'] ?? null),
-            'ip_address' => $this->stringOrNull($data['ip_address'] ?? null),
+            'memory_used_kb' => $this->unsignedIntOrNull($data['memory_used_kb'] ?? null),
+            'memory_peak_kb' => $this->unsignedIntOrNull($data['memory_peak_kb'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
+            'release_version' => $this->limitedString($data['release'] ?? null, 255),
+            'hostname' => $this->limitedString($data['hostname'] ?? null, 255),
+            'ip_address' => $this->limitedString($data['ip_address'] ?? null, 45),
             ...array_filter([
                 'route_name' => $this->limitedString($data['route_name'] ?? null, 255),
                 'route_methods' => $this->routeMethodsOrNull($data['route_methods'] ?? null),
@@ -121,16 +121,16 @@ class EventStore
                 'terminating_ms' => $this->fractionalMsOrNull($data['terminating_ms'] ?? null),
             ], fn (mixed $value): bool => $value !== null),
             'user_agent' => $this->stringOrNull($data['user_agent'] ?? null),
-            'headers' => $this->redactSensitiveHeaders($data['headers'] ?? null),
-            'request_data' => $data['request_data'] ?? null,
-            'response_data' => $data['response_data'] ?? null,
+            'headers' => $this->boundedBlob($this->redactSensitiveHeaders($data['headers'] ?? null)),
+            'request_data' => $this->boundedBlob($data['request_data'] ?? null),
+            'response_data' => $this->boundedBlob($data['response_data'] ?? null),
             'is_stub' => false,
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? $data['timestamp'] ?? null),
             ...array_filter([
                 'has_errors' => (bool) ($data['has_errors'] ?? false),
                 'has_slow_queries' => (bool) ($data['has_slow_queries'] ?? false),
             ]),
-            ...(array_key_exists('db_time_ms', $data) ? ['db_time_ms' => max(0.0, (float) $data['db_time_ms'])] : []),
+            ...(array_key_exists('db_time_ms', $data) ? ['db_time_ms' => $this->fractionalMsOrNull($data['db_time_ms']) ?? 0.0] : []),
         ];
 
         $trace = Trace::firstOrCreate(
@@ -169,7 +169,7 @@ class EventStore
             return;
         }
 
-        $durationMs = max(0.0, (float) ($data['duration_ms'] ?? 0));
+        $durationMs = $this->fractionalMsOrNull($data['duration_ms'] ?? null) ?? 0.0;
         $file = $this->limitedString($data['file'] ?? null, 255);
 
         DB::connection(Databases::TELEMETRY)->transaction(function () use ($trace, $durationMs, $file, $project, $data): void {
@@ -180,17 +180,17 @@ class EventStore
             TraceQuery::create([
                 'project_id' => $project->id,
                 'trace_id' => $trace->id,
-                'query_type' => $this->detectQueryType((string) ($data['sql'] ?? '')),
-                'sql' => (string) ($data['sql'] ?? ''),
-                'bindings' => $data['bindings'] ?? null,
-                'connection_name' => $this->stringOrNull($data['connection'] ?? null),
+                'query_type' => $this->detectQueryType($this->stringOrNull($data['sql'] ?? null) ?? ''),
+                'sql' => $this->stringOrNull($data['sql'] ?? null) ?? '',
+                'bindings' => $this->boundedBlob($data['bindings'] ?? null),
+                'connection_name' => $this->limitedString($data['connection'] ?? null, 100),
                 'file' => $file,
                 'line' => $file === null ? null : ($this->unsignedIntOrNull($data['line'] ?? null) ?: null),
                 'connection_type' => $this->limitedString($data['connection_type'] ?? null, 10),
                 'duration_ms' => $durationMs,
-                'row_count' => $this->intOrNull($data['row_count'] ?? null),
+                'row_count' => $this->unsignedIntOrNull($data['row_count'] ?? null, 9_007_199_254_740_991),
                 'is_n_plus_one' => (bool) ($data['is_n_plus_one'] ?? false),
-                'n_plus_one_group' => $this->stringOrNull($data['n_plus_one_group'] ?? null),
+                'n_plus_one_group' => $this->limitedString($data['n_plus_one_group'] ?? null, 255),
                 'is_slow' => (bool) ($data['is_slow'] ?? false),
                 'source_type' => $this->limitedString($data['source_type'] ?? null, 50),
                 'source_label' => $this->limitedString($data['source_label'] ?? null, 255),
@@ -211,12 +211,12 @@ class EventStore
         $trace = $this->resolveTrace($project, $data);
 
         $fingerprint = $this->fingerprinter->forException($data);
-        $exceptionClass = (string) ($data['class'] ?? $data['exception_class'] ?? 'Exception');
+        $exceptionClass = $this->limitedString($data['class'] ?? $data['exception_class'] ?? null, 255) ?? 'Exception';
         $message = $this->stringOrNull($data['message'] ?? null);
-        $file = $this->stringOrNull($data['file'] ?? null);
-        $line = $this->intOrNull($data['line'] ?? null);
+        $file = $this->limitedString($data['file'] ?? null, 255);
+        $line = $this->unsignedIntOrNull($data['line'] ?? null);
         $occurredAt = $this->parseTimestamp($data['occurred_at'] ?? null);
-        $userIdentifier = $this->stringOrNull($data['user_id'] ?? null);
+        $userIdentifier = $this->limitedString($data['user_id'] ?? null, 255);
         $userDetails = $this->userDetails($project, $userIdentifier, $data);
         $isHandled = filter_var($data['is_handled'] ?? $data['handled'] ?? false, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false;
         $languageVersion = $this->limitedString($data['language_version'] ?? null, 50);
@@ -269,7 +269,7 @@ class EventStore
                 'error_group_id' => $group->id,
                 'exception_class' => $exceptionClass,
                 'message' => $message,
-                'stacktrace' => $data['trace'] ?? $data['stacktrace'] ?? [],
+                'stacktrace' => $this->boundedBlob($data['trace'] ?? $data['stacktrace'] ?? [], overflow: []),
                 'fingerprint' => $fingerprint,
                 'user_identifier' => $userIdentifier,
                 'user_name' => $userDetails['user_name'] ?? null,
@@ -277,12 +277,12 @@ class EventStore
                 'file' => $file,
                 'line' => $line,
                 'is_handled' => $isHandled,
-                'environment' => $this->stringOrNull($data['environment'] ?? null),
+                'environment' => $this->limitedString($data['environment'] ?? null, 50),
                 'release_version' => $release,
                 'language_version' => $languageVersion,
                 'framework_version' => $frameworkVersion,
                 'hostname' => $hostname,
-                'context' => $data['context'] ?? null,
+                'context' => $this->boundedBlob($data['context'] ?? null),
                 'source_type' => $sourceType,
                 'source_label' => $sourceLabel,
                 'occurred_at' => $occurredAt,
@@ -306,11 +306,11 @@ class EventStore
         EventOccurrence::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'event_class' => (string) ($data['class'] ?? $data['event_class'] ?? 'UnknownEvent'),
-            'fired_by' => $this->stringOrNull($data['fired_by'] ?? null),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
-            'listeners_count' => (int) ($data['listeners_count'] ?? 0),
-            'payload' => $data['payload'] ?? null,
+            'event_class' => $this->limitedString($data['class'] ?? $data['event_class'] ?? null, 255) ?? 'UnknownEvent',
+            'fired_by' => $this->limitedString($data['fired_by'] ?? null, 255),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
+            'listeners_count' => $this->unsignedIntOrNull($data['listeners_count'] ?? null) ?? 0,
+            'payload' => $this->boundedBlob($data['payload'] ?? null),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -328,26 +328,26 @@ class EventStore
     {
         $trace = $this->resolveTrace($project, $data);
 
-        $jobId = $this->stringOrNull($data['job_id'] ?? null);
+        $jobId = $this->limitedString($data['job_id'] ?? null, 64);
 
         $values = [
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
             'job_id' => $jobId,
-            'job_class' => (string) ($data['class'] ?? $data['job_class'] ?? 'UnknownJob'),
-            'queue' => $this->stringOrNull($data['queue'] ?? null),
-            'connection' => $this->stringOrNull($data['connection'] ?? null),
+            'job_class' => $this->limitedString($data['class'] ?? $data['job_class'] ?? null, 255) ?? 'UnknownJob',
+            'queue' => $this->limitedString($data['queue'] ?? null, 100),
+            'connection' => $this->limitedString($data['connection'] ?? null, 100),
             'dispatched_at' => $this->parseTimestamp($data['dispatched_at'] ?? null, allowNull: true),
             'started_at' => $this->parseTimestamp($data['started_at'] ?? null, allowNull: true),
             'completed_at' => $this->parseTimestamp($data['completed_at'] ?? null, allowNull: true),
             'failed_at' => $this->parseTimestamp($data['failed_at'] ?? null, allowNull: true),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
-            'attempts' => (int) ($data['attempts'] ?? 0),
-            'status' => (string) ($data['status'] ?? 'pending'),
-            'payload' => $data['payload'] ?? null,
-            'user_identifier' => $this->stringOrNull($data['user_id'] ?? null),
-            'exception' => $data['exception'] ?? null,
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
+            'attempts' => $this->unsignedIntOrNull($data['attempts'] ?? null) ?? 0,
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'pending',
+            'payload' => $this->boundedBlob($data['payload'] ?? null),
+            'user_identifier' => $this->limitedString($data['user_id'] ?? null, 255),
+            'exception' => $this->boundedBlob($data['exception'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
         ];
 
         if ($jobId === null) {
@@ -376,14 +376,14 @@ class EventStore
         CacheEvent::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'key' => (string) ($data['key'] ?? ''),
-            'store' => $this->stringOrNull($data['store'] ?? null),
-            'operation' => (string) ($data['operation'] ?? 'unknown'),
+            'key' => $this->limitedString($data['key'] ?? null, 255) ?? '',
+            'store' => $this->limitedString($data['store'] ?? null, 50),
+            'operation' => $this->limitedString($data['operation'] ?? null, 20) ?? 'unknown',
             'succeeded' => (bool) ($data['succeeded'] ?? true),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             'source_type' => $this->limitedString($data['source_type'] ?? null, 50),
             'source_label' => $this->limitedString($data['source_label'] ?? null, 255),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -401,12 +401,12 @@ class EventStore
     private function storeJobAttempt(Project $project, array $data): void
     {
         $trace = $this->resolveTrace($project, $data);
-        $jobId = $this->stringOrNull($data['job_id'] ?? null);
+        $jobId = $this->limitedString($data['job_id'] ?? null, 64);
         $startedAt = $this->parseTimestamp($data['started_at'] ?? null, allowNull: true);
 
         $outcome = [
-            'status' => (string) ($data['status'] ?? 'unknown'),
-            'attempts' => (int) ($data['attempts'] ?? 1),
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'unknown',
+            'attempts' => $this->unsignedIntOrNull($data['attempts'] ?? null) ?? 1,
             ...array_filter(
                 ['memory_peak_kb' => $this->unsignedIntOrNull($data['memory_peak_kb'] ?? null)],
                 fn (mixed $value): bool => $value !== null,
@@ -414,21 +414,21 @@ class EventStore
             'started_at' => $startedAt,
             'completed_at' => $this->parseTimestamp($data['completed_at'] ?? null, allowNull: true),
             'failed_at' => $this->parseTimestamp($data['failed_at'] ?? null, allowNull: true),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             ...array_filter([
                 'lazy_loads' => $this->unsignedIntOrNull($data['lazy_loads'] ?? null),
                 'hydrated_models' => $this->unsignedIntOrNull($data['hydrated_models'] ?? null),
             ], fn (mixed $value): bool => $value !== null),
-            'exception' => $data['exception'] ?? null,
+            'exception' => $this->boundedBlob($data['exception'] ?? null),
         ];
 
         $details = [
             'trace_id' => $trace?->id,
-            'job_class' => (string) ($data['class'] ?? $data['job_class'] ?? 'UnknownJob'),
-            'queue' => $this->stringOrNull($data['queue'] ?? null),
-            'connection' => $this->stringOrNull($data['connection'] ?? null),
-            'user_identifier' => $this->stringOrNull($data['user_id'] ?? null),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'job_class' => $this->limitedString($data['class'] ?? $data['job_class'] ?? null, 255) ?? 'UnknownJob',
+            'queue' => $this->limitedString($data['queue'] ?? null, 100),
+            'connection' => $this->limitedString($data['connection'] ?? null, 100),
+            'user_identifier' => $this->limitedString($data['user_id'] ?? null, 255),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
         ];
 
         $values = ['project_id' => $project->id, 'job_id' => $jobId, 'dispatched_at' => null, ...$details, ...$outcome];
@@ -509,20 +509,20 @@ class EventStore
     {
         CommandRun::create([
             'project_id' => $project->id,
-            'command' => $this->stringOrNull($data['command'] ?? null) ?? 'unknown',
+            'command' => $this->limitedString($data['command'] ?? null, 255) ?? 'unknown',
             'memory_peak_kb' => $this->unsignedIntOrNull($data['memory_peak_kb'] ?? null),
-            'arguments' => is_array($data['arguments'] ?? null) ? $data['arguments'] : null,
-            'options' => is_array($data['options'] ?? null) ? $data['options'] : null,
+            'arguments' => is_array($data['arguments'] ?? null) ? $this->boundedBlob($data['arguments']) : null,
+            'options' => is_array($data['options'] ?? null) ? $this->boundedBlob($data['options']) : null,
             'lazy_loads' => $this->unsignedIntOrNull($data['lazy_loads'] ?? null),
             'hydrated_models' => $this->unsignedIntOrNull($data['hydrated_models'] ?? null),
-            'status' => $this->stringOrNull($data['status'] ?? null) ?? 'completed',
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'completed',
             'exit_code' => $this->intOrNull($data['exit_code'] ?? null),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             'bootstrap_ms' => $this->fractionalMsOrNull($data['bootstrap_ms'] ?? null),
             'action_ms' => $this->fractionalMsOrNull($data['action_ms'] ?? null),
             'terminating_ms' => $this->fractionalMsOrNull($data['terminating_ms'] ?? null),
             'output' => $this->stringOrNull($data['output'] ?? null),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -535,7 +535,7 @@ class EventStore
      */
     private function storeScheduledTask(Project $project, array $data): void
     {
-        $task = $this->stringOrNull($data['task'] ?? null) ?? 'unknown';
+        $task = $this->limitedString($data['task'] ?? null, 255) ?? 'unknown';
         $suppliedHash = $this->stringOrNull($data['task_hash'] ?? null);
 
         ScheduledTaskRun::create([
@@ -544,12 +544,12 @@ class EventStore
             'task_hash' => $suppliedHash !== null && preg_match('/^[0-9a-f]{40}$/i', $suppliedHash) ? $suppliedHash : sha1($task),
             'lazy_loads' => $this->unsignedIntOrNull($data['lazy_loads'] ?? null),
             'hydrated_models' => $this->unsignedIntOrNull($data['hydrated_models'] ?? null),
-            'schedule' => $this->stringOrNull($data['schedule'] ?? null),
-            'schedule_summary' => $this->stringOrNull($data['schedule_summary'] ?? null),
-            'next_run_at' => $this->parseTimestamp($data['next_run_at'] ?? null, allowNull: true),
-            'status' => $this->stringOrNull($data['status'] ?? null) ?? 'processed',
+            'schedule' => $this->limitedString($data['schedule'] ?? null, 255),
+            'schedule_summary' => $this->limitedString($data['schedule_summary'] ?? null, 255),
+            'next_run_at' => $this->parseTimestamp($data['next_run_at'] ?? null, allowNull: true, allowFuture: true),
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'processed',
             'exit_code' => $this->intOrNull($data['exit_code'] ?? null),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             'memory_peak_kb' => $this->unsignedIntOrNull($data['memory_peak_kb'] ?? null),
             'timezone' => $this->limitedString($data['timezone'] ?? null, 64),
             'repeat_seconds' => $this->unsignedIntOrNull($data['repeat_seconds'] ?? null, 65_535),
@@ -557,9 +557,9 @@ class EventStore
             'on_one_server' => $this->boolOrNull($data['on_one_server'] ?? null),
             'run_in_background' => $this->boolOrNull($data['run_in_background'] ?? null),
             'even_in_maintenance_mode' => $this->boolOrNull($data['even_in_maintenance_mode'] ?? null),
-            'threshold_ms' => $this->intOrNull($data['threshold_ms'] ?? null),
+            'threshold_ms' => $this->unsignedIntOrNull($data['threshold_ms'] ?? null),
             'output' => $this->stringOrNull($data['output'] ?? null),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -576,15 +576,15 @@ class EventStore
         MailSend::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'mailable_class' => $this->stringOrNull($data['class'] ?? $data['mailable_class'] ?? null) ?? 'UnknownMailable',
-            'mailer' => $this->stringOrNull($data['mailer'] ?? null),
-            'subject' => $this->stringOrNull($data['subject'] ?? null),
-            'recipients_count' => (int) ($data['recipients_count'] ?? 0),
-            'attachments_count' => (int) ($data['attachments_count'] ?? 0),
-            'status' => $this->stringOrNull($data['status'] ?? null) ?? 'sent',
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'mailable_class' => $this->limitedString($data['class'] ?? $data['mailable_class'] ?? null, 255) ?? 'UnknownMailable',
+            'mailer' => $this->limitedString($data['mailer'] ?? null, 50),
+            'subject' => $this->limitedString($data['subject'] ?? null, 255),
+            'recipients_count' => $this->unsignedIntOrNull($data['recipients_count'] ?? null) ?? 0,
+            'attachments_count' => $this->unsignedIntOrNull($data['attachments_count'] ?? null) ?? 0,
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'sent',
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             ...$this->sourceAttributes($data),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -599,12 +599,12 @@ class EventStore
         NotificationSend::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'notification_class' => $this->stringOrNull($data['class'] ?? $data['notification_class'] ?? null) ?? 'UnknownNotification',
-            'channel' => $this->stringOrNull($data['channel'] ?? null) ?? 'unknown',
-            'status' => $this->stringOrNull($data['status'] ?? null) ?? 'sent',
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
+            'notification_class' => $this->limitedString($data['class'] ?? $data['notification_class'] ?? null, 255) ?? 'UnknownNotification',
+            'channel' => $this->limitedString($data['channel'] ?? null, 50) ?? 'unknown',
+            'status' => $this->limitedString($data['status'] ?? null, 50) ?? 'sent',
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
             ...$this->sourceAttributes($data),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -619,15 +619,15 @@ class EventStore
         OutgoingRequest::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'method' => strtoupper($this->stringOrNull($data['method'] ?? null) ?? 'GET'),
-            'host' => (string) ($data['host'] ?? ''),
-            'url' => (string) ($data['url'] ?? ''),
-            'status_code' => $this->intOrNull($data['status_code'] ?? null),
-            'duration_ms' => $this->intOrNull($data['duration_ms'] ?? null),
-            'request_size_bytes' => $this->intOrNull($data['request_size_bytes'] ?? null),
-            'response_size_bytes' => $this->intOrNull($data['response_size_bytes'] ?? null),
+            'method' => strtoupper($this->limitedString($data['method'] ?? null, 10) ?? 'GET'),
+            'host' => $this->limitedString($data['host'] ?? null, 255) ?? '',
+            'url' => $this->limitedString($data['url'] ?? null, 2048) ?? '',
+            'status_code' => $this->unsignedIntOrNull($data['status_code'] ?? null, 65_535),
+            'duration_ms' => $this->unsignedIntOrNull($data['duration_ms'] ?? null),
+            'request_size_bytes' => $this->unsignedIntOrNull($data['request_size_bytes'] ?? null),
+            'response_size_bytes' => $this->unsignedIntOrNull($data['response_size_bytes'] ?? null),
             ...$this->sourceAttributes($data),
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -665,9 +665,9 @@ class EventStore
      */
     private function storeUser(Project $project, array $data): void
     {
-        $identifier = $this->stringOrNull($data['user_id'] ?? null);
-        $name = $this->stringOrNull($data['name'] ?? null);
-        $email = $this->stringOrNull($data['email'] ?? null);
+        $identifier = $this->limitedString($data['user_id'] ?? null, 255);
+        $name = $this->limitedString($data['name'] ?? null, 255);
+        $email = $this->limitedString($data['email'] ?? null, 255);
 
         if ($identifier === null || ($name === null && $email === null)) {
             return;
@@ -717,8 +717,8 @@ class EventStore
      */
     private function userDetails(Project $project, ?string $userIdentifier, array $data): array
     {
-        $name = $this->stringOrNull($data['user_name'] ?? null);
-        $email = $this->stringOrNull($data['user_email'] ?? null);
+        $name = $this->limitedString($data['user_name'] ?? null, 255);
+        $email = $this->limitedString($data['user_email'] ?? null, 255);
 
         if ($userIdentifier !== null && $name === null && $email === null) {
             $user = EndUser::where('project_id', $project->id)->where('identifier', $userIdentifier)->first();
@@ -839,6 +839,18 @@ class EventStore
     }
 
     /**
+     * A JSON column value as sent, or the overflow (a marker by default) when its encoding exceeds the configured limit.
+     *
+     * @param  array<mixed>|null  $overflow
+     */
+    private function boundedBlob(mixed $value, ?array $overflow = null): mixed
+    {
+        $bytes = strlen((string) json_encode($value));
+
+        return $bytes <= config('watch.ingest.max_blob_bytes') ? $value : ($overflow ?? ['_truncated' => true, 'bytes' => $bytes]);
+    }
+
+    /**
      * The route methods as one upper-case string such as `GET|HEAD`: a list is joined with a pipe, dropping entries
      * that are not non-empty strings. Null when nothing is left.
      */
@@ -881,13 +893,13 @@ class EventStore
         LogEntry::create([
             'project_id' => $project->id,
             'trace_id' => $trace?->id,
-            'level' => (string) ($data['level'] ?? 'info'),
-            'message' => (string) ($data['message'] ?? ''),
-            'source_type' => $this->stringOrNull($data['source_type'] ?? null),
-            'source_label' => $this->stringOrNull($data['source_label'] ?? null),
-            'user_name' => $this->stringOrNull($data['user_name'] ?? null),
-            'context' => is_array($context) ? $context : null,
-            'environment' => $this->stringOrNull($data['environment'] ?? null),
+            'level' => $this->limitedString($data['level'] ?? null, 20) ?? 'info',
+            'message' => $this->stringOrNull($data['message'] ?? null) ?? '',
+            'source_type' => $this->limitedString($data['source_type'] ?? null, 50),
+            'source_label' => $this->limitedString($data['source_label'] ?? null, 255),
+            'user_name' => $this->limitedString($data['user_name'] ?? null, 255),
+            'context' => is_array($context) ? $this->boundedBlob($context) : null,
+            'environment' => $this->limitedString($data['environment'] ?? null, 50),
             'occurred_at' => $this->parseTimestamp($data['occurred_at'] ?? null),
         ]);
     }
@@ -904,14 +916,14 @@ class EventStore
      */
     private function resolveTrace(Project $project, array $data): ?Trace
     {
-        $correlationId = $data['request_id'] ?? $data['correlation_id'] ?? null;
+        $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
         if (! $correlationId) {
             return null;
         }
 
         return Trace::firstOrCreate(
-            ['project_id' => $project->id, 'correlation_id' => (string) $correlationId],
+            ['project_id' => $project->id, 'correlation_id' => $correlationId],
             fn (): array => [
                 'method' => '',
                 'uri' => '',
@@ -936,22 +948,30 @@ class EventStore
             : null;
     }
 
-    private function parseTimestamp(mixed $value, bool $allowNull = false): ?CarbonImmutable
+    /**
+     * Timestamps more than a minute ahead are held there, so a far-future record still ages out of retention.
+     */
+    private function parseTimestamp(mixed $value, bool $allowNull = false, bool $allowFuture = false): ?CarbonImmutable
     {
         if (! $value) {
             return $allowNull ? null : CarbonImmutable::now();
         }
 
         try {
-            return CarbonImmutable::parse((string) $value);
+            $timestamp = CarbonImmutable::parse((string) $value);
         } catch (\Throwable) {
             return $allowNull ? null : CarbonImmutable::now();
         }
+
+        return $allowFuture ? $timestamp : $timestamp->min(CarbonImmutable::now()->addMinute());
     }
 
+    /**
+     * An integer for a signed `int` column, or null when the value is not numeric or out of range.
+     */
     private function intOrNull(mixed $value): ?int
     {
-        return $value === null || $value === '' ? null : (int) $value;
+        return is_numeric($value) && abs((float) $value) <= 2_147_483_647 ? (int) $value : null;
     }
 
     /**
@@ -971,11 +991,7 @@ class EventStore
 
     private function stringOrNull(mixed $value): ?string
     {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return (string) $value;
+        return is_scalar($value) && $value !== '' ? (string) $value : null;
     }
 
     /**

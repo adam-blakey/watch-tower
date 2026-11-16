@@ -12,11 +12,11 @@ class Fingerprinter
      */
     public function forException(array $exception): string
     {
-        $class = (string) ($exception['class'] ?? $exception['exception_class'] ?? 'UnknownException');
-        $file = (string) ($exception['file'] ?? $this->firstFrameValue($exception, 'file') ?? '');
-        $line = (string) ($exception['line'] ?? $this->firstFrameValue($exception, 'line') ?? '');
+        $class = $exception['class'] ?? $exception['exception_class'] ?? 'UnknownException';
+        $file = $exception['file'] ?? $this->firstFrameValue($exception, 'file') ?? '';
+        $line = $exception['line'] ?? $this->firstFrameValue($exception, 'line') ?? '';
 
-        return hash('sha256', $class.'|'.$file.'|'.$line);
+        return hash('sha256', implode('|', array_map(fn (mixed $part): string => is_scalar($part) ? (string) $part : '', [$class, $file, $line])));
     }
 
     /**
@@ -30,8 +30,8 @@ class Fingerprinter
             return null;
         }
 
-        $first = $stack[0];
+        $first = $stack[0] ?? null;
 
-        return is_array($first) && isset($first[$key]) ? (string) $first[$key] : null;
+        return is_array($first) && is_scalar($first[$key] ?? null) ? (string) $first[$key] : null;
     }
 }
