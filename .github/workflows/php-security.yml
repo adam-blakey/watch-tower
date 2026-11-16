@@ -1,4 +1,3 @@
-# Kept out of the CodeQL matrix so each scanner runs once per trigger.
 # Inputs with defaults (lock, format, ...) are left out of `with:`: an empty value overrides the default and breaks the tool.
 name: "PHP Security"
 

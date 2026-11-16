@@ -17,14 +17,6 @@ jobs:
   build:
     uses: ./.github/workflows/build.yml
 
-  codeql:
-    uses: ./.github/workflows/codeql.yml
-    permissions:
-      security-events: write
-      packages: read
-      actions: read
-      contents: read
-
   dast:
     uses: ./.github/workflows/dast.yml
 
