@@ -139,7 +139,7 @@ For production-style assets:
 npm run build
 ```
 
-On shared hosting that limits threads per user (e.g. cPanel/CloudLinux), the build can abort with `The global thread pool has not been initialized` or `Rolldown panicked`. Use the single-threaded variant instead:
+On shared hosting that caps virtual memory (e.g. cPanel/CloudLinux), the build can abort with `The global thread pool has not been initialized ... Resource temporarily unavailable` or `Rolldown panicked`. The cap is on address space, not RAM: V8 reserves up to 10 GB per WebAssembly memory and the allocators reserve arenas per thread, so new threads fail to start. Use this variant, which limits those reservations and the thread count (the same settings `.cpanel.yml` uses):
 
 ```bash
 npm run build:shared-host
