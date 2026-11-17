@@ -135,3 +135,13 @@ it('serves every project and settings page over a full demo data set', function 
 
     expect($visited)->toBe($existing);
 });
+
+it('redirects the project root to its dashboard on GET only', function () {
+    $project = Project::factory()->create();
+    $this->actingAs(User::factory()->create(['role' => User::ROLE_SUPER_ADMIN]));
+
+    $this->get("/projects/{$project->slug}")->assertRedirect("/projects/{$project->slug}/dashboard");
+
+    $rootRoute = app('router')->getRoutes()->match(Request::create("/projects/{$project->slug}"));
+    expect($rootRoute->methods())->toBe(['GET', 'HEAD']);
+});
