@@ -205,3 +205,9 @@ Use Wayfinder to generate TypeScript functions for Laravel routes. Import from `
 - IMPORTANT: Activate `inertia-react-development` when working with Inertia React client-side patterns.
 
 </laravel-boost-guidelines>
+
+# Commit Messages
+
+- Every commit must follow [Conventional Commits](https://www.conventionalcommits.org), or the "Conventional Commits" CI check fails: `type(optional scope): description`.
+- Types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test.
+- Start the description in lower case and keep the first line under 100 characters, e.g. `fix(settings): ignore current user in unique email rule`.
