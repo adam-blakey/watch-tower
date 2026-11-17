@@ -91,12 +91,7 @@ type Props = {
 };
 
 type SortKey =
-    | 'sql'
-    | 'connection'
-    | 'total'
-    | 'total_ms'
-    | 'avg_ms'
-    | 'p95_ms';
+    'sql' | 'connection' | 'total' | 'total_ms' | 'avg_ms' | 'p95_ms';
 type SortDir = 'asc' | 'desc';
 
 /*

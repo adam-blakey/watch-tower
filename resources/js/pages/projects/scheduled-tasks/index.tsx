@@ -85,13 +85,7 @@ type Props = {
 };
 
 type SortKey =
-    | 'task'
-    | 'processed'
-    | 'skipped'
-    | 'failed'
-    | 'total'
-    | 'avg_ms'
-    | 'p95_ms';
+    'task' | 'processed' | 'skipped' | 'failed' | 'total' | 'avg_ms' | 'p95_ms';
 type SortDir = 'asc' | 'desc';
 
 export default function ScheduledTasksIndex({

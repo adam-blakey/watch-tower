@@ -82,10 +82,7 @@ type Props = {
 };
 
 type SortKey =
-    | 'last_occurrence_at'
-    | 'short_class'
-    | 'total_count'
-    | 'users_count';
+    'last_occurrence_at' | 'short_class' | 'total_count' | 'users_count';
 type SortDir = 'asc' | 'desc';
 
 export default function ExceptionsIndex({
