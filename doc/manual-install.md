@@ -139,6 +139,12 @@ For production-style assets:
 npm run build
 ```
 
+On shared hosting that limits threads per user (e.g. cPanel/CloudLinux), the build can abort with `The global thread pool has not been initialized` or `Rolldown panicked`. Use the single-threaded variant instead:
+
+```bash
+npm run build:shared-host
+```
+
 For local development with HMR, use the dev server in the next section instead.
 
 ---

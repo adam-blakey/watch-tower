@@ -4,6 +4,7 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
+        "build:shared-host": "RAYON_NUM_THREADS=1 TOKIO_WORKER_THREADS=1 ROLLDOWN_WORKER_THREADS=1 UV_THREADPOOL_SIZE=1 vite build",
         "build:ssr": "vite build && vite build --ssr",
         "dev": "vite",
         "format": "prettier --write resources/",
