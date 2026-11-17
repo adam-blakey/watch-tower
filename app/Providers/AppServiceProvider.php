@@ -15,12 +15,21 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\View\Compilers\BladeCompiler;
 
 class AppServiceProvider extends ServiceProvider
 {
+    /**
+     * Inertia registers its `inertia::` Blade components through the Blade
+     * facade. `php artisan optimize` runs route:cache, which boots a second
+     * app and repoints the facades at it, so view:cache then compiles without
+     * the namespace. Registering it on the resolved compiler itself avoids that.
+     */
     public function register(): void
     {
-        //
+        $this->callAfterResolving('blade.compiler', function (BladeCompiler $blade): void {
+            $blade->componentNamespace('Inertia\\View\\Components', 'inertia');
+        });
     }
 
     public function boot(): void
