@@ -12,7 +12,10 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function home(Request $request): RedirectResponse
+    /**
+     * Opens the user's first project, or explains why there is none to open.
+     */
+    public function home(Request $request): RedirectResponse|Response
     {
         $user = $request->user();
 
@@ -21,7 +24,9 @@ class DashboardController extends Controller
             : $user->projects()->orderBy('created_at')->first();
 
         if (! $project) {
-            return redirect()->route('settings.profile.show');
+            return Inertia::render('home', [
+                'reason' => Project::query()->exists() ? 'not_assigned' : 'no_projects',
+            ]);
         }
 
         return redirect()->route('projects.dashboard', $project);
