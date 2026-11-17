@@ -41,8 +41,7 @@ class DashboardStats
         $traces = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
-            ->whereBetween('occurred_at', [$range->from, $range->to])
-            ->orderBy('occurred_at');
+            ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         $stats = (clone $traces)
             ->selectRaw('COUNT(*) AS total')
