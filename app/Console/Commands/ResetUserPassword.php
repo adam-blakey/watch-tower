@@ -14,7 +14,7 @@ use Illuminate\Validation\Rules\Password;
  *
  * Changing the password hash signs the user out of every existing session.
  */
-#[Signature('watch:reset-password {email : The email address of the user}')]
+#[Signature('user:reset-password {email : The email address of the user}')]
 #[Description('Set a new password for a user')]
 class ResetUserPassword extends Command
 {
