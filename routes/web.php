@@ -20,6 +20,7 @@ use App\Http\Controllers\Settings\AdminsController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\ProjectAdminController;
+use Illuminate\Routing\RedirectController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
@@ -73,7 +74,8 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         ->name('projects.')
         ->middleware('can:view-project,project')
         ->group(function () {
-            Route::redirect('/', '/projects/{project:slug}/dashboard');
+            // GET-only: Route::redirect() uses any(), whose QUERY verb (newer Laravel) breaks Wayfinder's Method type.
+            Route::get('/', RedirectController::class)->defaults('destination', '/projects/{project:slug}/dashboard')->defaults('status', 302);
             Route::get('/dashboard', [DashboardController::class, 'show'])->name('dashboard');
             Route::get('/requests', [RequestsController::class, 'index'])->name('requests.index');
             Route::get('/exceptions', [ExceptionsController::class, 'index'])->name('exceptions.index');
