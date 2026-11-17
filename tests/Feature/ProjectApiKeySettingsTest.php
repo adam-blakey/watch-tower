@@ -205,3 +205,14 @@ it('does not rotate the key of a project that is being deleted', function () {
         ->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
         ->assertNotFound();
 });
+
+it('creates a default organization when none exists yet', function () {
+    Organization::query()->delete();
+
+    $this->actingAs($this->admin)
+        ->post(route('settings.projects.store'), newProjectInput())
+        ->assertRedirect(route('settings.projects.index'));
+
+    expect(Project::where('slug', 'acme')->value('organization_id'))
+        ->toBe(Organization::query()->value('id'));
+});

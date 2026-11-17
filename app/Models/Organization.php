@@ -24,6 +24,15 @@ class Organization extends Model
     }
 
     /**
+     * The oldest organization, created on first use so a fresh install never has none.
+     */
+    public static function default(): self
+    {
+        return static::query()->orderBy('created_at')->first()
+            ?? static::create(['name' => 'Default', 'slug' => 'default', 'plan' => 'free', 'retention_days' => 30]);
+    }
+
+    /**
      * @return HasMany<Project, $this>
      */
     public function projects(): HasMany

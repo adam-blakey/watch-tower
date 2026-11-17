@@ -107,7 +107,7 @@ class ProjectAdminController extends Controller
         ]);
 
         $project = new Project([
-            'organization_id' => Organization::query()->orderBy('created_at')->value('id'),
+            'organization_id' => Organization::default()->id,
             'name' => $validated['name'],
             'slug' => $validated['slug'],
             'description' => $validated['description'] ?? null,
