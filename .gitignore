@@ -28,4 +28,6 @@ yarn-error.log
 /.zed
 /nightwatch-client
 /.claude
-/.agent
+/.agent/storage/debugbar
+/error_log
+/public/error_log
