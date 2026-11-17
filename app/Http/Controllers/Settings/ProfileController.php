@@ -29,11 +29,12 @@ class ProfileController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        $user = $request->user();
+        // From the auth guard, not the request, so the ignored ID can never be user input.
+        $user = Auth::user();
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user)],
             'avatar' => ['nullable', 'image', 'max:2048'],
         ]);
 
