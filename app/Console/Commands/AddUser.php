@@ -57,7 +57,7 @@ class AddUser extends Command
             'email' => $this->argument('email'),
             'password' => $password,
             'role' => $this->option('super-admin') ? User::ROLE_SUPER_ADMIN : User::ROLE_ADMIN,
-            'organization_id' => Organization::query()->orderBy('created_at')->value('id'),
+            'organization_id' => Organization::default()->id,
         ]);
 
         $this->components->info("Created {$user->role} [{$user->email}].");

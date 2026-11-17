@@ -60,7 +60,7 @@ class AdminsController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => User::ROLE_ADMIN,
-            'organization_id' => Organization::query()->orderBy('created_at')->value('id'),
+            'organization_id' => Organization::default()->id,
         ]);
 
         $admin->projects()->sync($validated['project_ids'] ?? []);
