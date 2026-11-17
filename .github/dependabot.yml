@@ -1,11 +1,36 @@
 version: 2
 updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: fix
+      include: scope
+    groups:
+      dependencies:
+        patterns: ['*']
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: fix
+      include: scope
+    groups:
+      dependencies:
+        patterns: ['*']
+
   # Workflow actions are pinned to commit SHAs; this keeps the pins current.
   # One grouped PR per month keeps CI runs (and review noise) to a minimum.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    commit-message:
+      prefix: ci
+      include: scope
     groups:
       actions:
         patterns: ['*']
@@ -15,6 +40,9 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    commit-message:
+      prefix: build
+      include: scope
     groups:
       images:
         patterns: ['*']

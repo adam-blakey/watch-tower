@@ -38,6 +38,7 @@ php artisan wayfinder:generate --with-form
 npm run lint:check
 npm run format:check
 npm run types:check
+npm run build
 ```
 
 `composer run ci:check` runs most of this (ESLint, Prettier, `tsc`, Pint and the tests). It does not run the migration cycle, and it does not generate the Wayfinder route files that `tsc` needs, so run `php artisan wayfinder:generate --with-form` before it on a fresh checkout.
@@ -72,7 +73,7 @@ Never write to `log_entries` with `INSERT OR REPLACE`. The replaced row's delete
 
 Branch from `main` and name the branch `<type>/<issue-number>-<short-slug>`, for example `fix/11-test-suite` or `feat/35-release-image`.
 
-Commit messages follow [Conventional Commits](https://www.conventionalcommits.org), matching the existing history:
+Commit messages follow [Conventional Commits](https://www.conventionalcommits.org). The Conventional Commits check lints every commit in a PR against `commitlint.config.js`. The common prefixes are below; `build:`, `perf:`, `refactor:`, `revert:` and `test:` are allowed too.
 
 | Prefix | Use for |
 | --- | --- |
