@@ -1,14 +1,9 @@
-name: Build & Test
+name: Build, Test & Deploy
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
-# A newer push to main cancels the run in progress.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -26,3 +21,46 @@ jobs:
       contents: read
       security-events: write
       actions: read
+
+  deploy_staging:
+    if: github.ref == 'refs/heads/main'
+    needs: [build, dast, php_security]
+    runs-on: ubuntu-latest
+    concurrency: deploy-staging
+    environment:
+      name: staging
+      url: https://${{ vars.APP_DOMAIN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy-cpanel
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        with:
+          host: ${{ vars.CPANEL_HOST }}
+          user: ${{ vars.CPANEL_USER }}
+          token: ${{ secrets.CPANEL_TOKEN }}
+          domain: ${{ vars.APP_DOMAIN }}
+
+  deploy_prod:
+    needs: deploy_staging
+    runs-on: ubuntu-latest
+    concurrency: deploy-prod
+    environment:
+      name: prod
+      url: https://${{ vars.APP_DOMAIN }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/deploy-cpanel
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        with:
+          host: ${{ vars.CPANEL_HOST }}
+          user: ${{ vars.CPANEL_USER }}
+          token: ${{ secrets.CPANEL_TOKEN }}
+          domain: ${{ vars.APP_DOMAIN }}
