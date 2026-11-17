@@ -82,12 +82,7 @@ type Props = {
 };
 
 type SortKey =
-    | 'command'
-    | 'successful'
-    | 'failed'
-    | 'total'
-    | 'avg_ms'
-    | 'p95_ms';
+    'command' | 'successful' | 'failed' | 'total' | 'avg_ms' | 'p95_ms';
 type SortDir = 'asc' | 'desc';
 
 export default function CommandsIndex({
