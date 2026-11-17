@@ -21,6 +21,13 @@ updates:
     groups:
       dependencies:
         patterns: ['*']
+    # eslint-plugin-import (and eslint-plugin-react) peer-depend on eslint <=9,
+    # so a v10 bump breaks `npm ci`. Lift once those plugins support v10.
+    ignore:
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
 
   # Workflow actions are pinned to commit SHAs; this keeps the pins current.
   # One grouped PR per month keeps CI runs (and review noise) to a minimum.
