@@ -205,3 +205,10 @@ Use Wayfinder to generate TypeScript functions for Laravel routes. Import from `
 - IMPORTANT: Activate `inertia-react-development` when working with Inertia React client-side patterns.
 
 </laravel-boost-guidelines>
+
+## Commits & Pull Requests
+
+- Every commit message must follow [Conventional Commits](https://www.conventionalcommits.org), because CI runs commitlint on every commit in a PR: `type(optional scope): lower-case description`, first line under 100 characters.
+- Allowed types: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`, `style`, `test`. Example: `chore: ignore app.js and tmp/`.
+- Get the subject right before the first push. Fixing it afterwards needs an amend and a force-push, which may be blocked, and a follow-up commit cannot fix a bad earlier one.
+- Mirror the headings in `.github/PULL_REQUEST_TEMPLATE.md` in PR descriptions.
