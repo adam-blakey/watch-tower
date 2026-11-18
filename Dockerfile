@@ -244,6 +244,20 @@ while :; do
 done
 EOF
 
+# Imported into the base image's site block. Static files skip Laravel, so they
+# get their headers here. `?` only sets a header PHP has not already set (see
+# app/Http/Middleware/SecurityHeaders.php). The base image lets any origin load
+# fonts and SVGs; this app only uses its own, so that header is removed.
+COPY --chmod=644 <<'EOF' /etc/frankenphp/caddyfile-server.d/watch-tower.caddyfile
+@cross-origin-assets path *.svg *.svgz *.ttf *.ttc *.otf *.eot *.woff *.woff2
+header @cross-origin-assets -Access-Control-Allow-Origin
+
+header {
+	?Cross-Origin-Resource-Policy "same-origin"
+	?Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+}
+EOF
+
 USER www-data
 WORKDIR /var/www/html
 
