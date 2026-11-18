@@ -9,7 +9,6 @@
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         <script nonce="{{ Vite::cspNonce() }}">
-            // Radix's scroll lock (react-style-singleton) reads this to put the nonce on the <style> it injects.
             window.__webpack_nonce__ = @json(Vite::cspNonce());
             (function () {
                 try {

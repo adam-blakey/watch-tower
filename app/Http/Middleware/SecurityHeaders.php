@@ -9,15 +9,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
-    /**
-     * Keep in step with the Caddy snippet in the Dockerfile, which sets the same value on static files.
-     */
     public const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
 
-    /**
-     * The CSP and COEP are skipped for the Vite dev server and Telescope, which load code inline and from
-     * other origins. Redirect bodies are emptied: browsers only follow the Location header.
-     */
     public function handle(Request $request, Closure $next): Response
     {
         $isStrict = ! Vite::isRunningHot() && ! $request->is(config('telescope.path').'*');

@@ -24,7 +24,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // Reads config('app.trusted_proxies') per request: .env is not loaded yet when this callback runs.
         $middleware->replace(FrameworkTrustProxies::class, TrustProxies::class);
 
-        // Global, so 404s for unknown URLs and the API get the headers too.
         $middleware->append(SecurityHeaders::class);
 
         // Capped at 10: the 6 fonts, the CSS, the app entry and the page chunk. An uncapped Link header grows

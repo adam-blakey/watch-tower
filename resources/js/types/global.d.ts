@@ -16,6 +16,5 @@ declare module '@inertiajs/core' {
 }
 
 declare global {
-    /** CSP nonce set by the inline script in app.blade.php. */
     var __webpack_nonce__: string | undefined;
 }
