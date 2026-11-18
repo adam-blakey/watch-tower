@@ -9,6 +9,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class SecurityHeaders
 {
+    /**
+     * Turns these browser features off: the app uses none of them.
+     */
     public const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
 
     public function handle(Request $request, Closure $next): Response

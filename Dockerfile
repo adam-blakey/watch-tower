@@ -251,6 +251,7 @@ header @cross-origin-assets -Access-Control-Allow-Origin
 
 header {
 	?Cross-Origin-Resource-Policy "same-origin"
+	# Turns these browser features off: the app uses none of them.
 	?Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
 }
 EOF
