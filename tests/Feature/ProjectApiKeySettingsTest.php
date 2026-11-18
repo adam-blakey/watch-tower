@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Environment;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\User;
@@ -42,11 +43,11 @@ function shownApiKey(TestResponse $response): ?array
 }
 
 /**
- * Whether any column of any project row holds the given text.
+ * Whether any column of any project or environment row holds the given text.
  */
 function projectsTableContains(string $needle): bool
 {
-    return str_contains(json_encode(DB::table('projects')->get()), $needle);
+    return str_contains(json_encode([DB::table('projects')->get(), DB::table('environments')->get()]), $needle);
 }
 
 it('shows the full key once after creating a project', function () {
@@ -62,7 +63,8 @@ it('shows the full key once after creating a project', function () {
     $shown = shownApiKey($response);
 
     expect($shown['key'])->toStartWith('pk_')
-        ->and(Project::findByApiKey($shown['key'])?->slug)->toBe('acme')
+        ->and(Environment::findByApiKey($shown['key'])?->project->slug)->toBe('acme')
+        ->and(Environment::findByApiKey($shown['key'])?->is_default)->toBeTrue()
         ->and(projectsTableContains($shown['key']))->toBeFalse();
 
     $this->get(route('settings.projects.index'))
@@ -104,7 +106,8 @@ it('shows nothing when the flashed key cannot be decrypted', function () {
 });
 
 it('lists projects with the key prefix and last use but never the full key', function () {
-    $project = Project::factory()->withApiKey('pk_abcdef123456_full_secret')->create(['api_key_last_used_at' => now()->subHour()]);
+    $project = Project::factory()->withApiKey('pk_abcdef123456_full_secret')->create();
+    $project->defaultEnvironment->forceFill(['api_key_last_used_at' => now()->subHour()])->save();
 
     $response = $this->actingAs($this->admin)->get(route('settings.projects.index'));
 
@@ -115,7 +118,7 @@ it('lists projects with the key prefix and last use but never the full key', fun
         ->and($row['previous_api_key_expires_at'])->toBeNull()
         ->and($row)->not->toHaveKeys(['api_key', 'api_key_hash'])
         ->and($response->getContent())->not->toContain('pk_abcdef123456_full_secret')
-        ->and($response->getContent())->not->toContain($project->api_key_hash);
+        ->and($response->getContent())->not->toContain($project->defaultEnvironment->api_key_hash);
 });
 
 it('rotates a key and shows the new one once', function () {
@@ -132,9 +135,9 @@ it('rotates a key and shows the new one once', function () {
         ->hasFlash('new_api_key.key'));
     $shown = shownApiKey($response);
 
-    expect(Project::findByApiKey($shown['key'])?->id)->toBe($project->id)
-        ->and(Project::findByApiKey('pk_test_old'))->toBeNull()
-        ->and($project->fresh()->api_key_version)->toBe(2)
+    expect(Environment::findByApiKey($shown['key'])?->id)->toBe($project->defaultEnvironment->id)
+        ->and(Environment::findByApiKey('pk_test_old'))->toBeNull()
+        ->and($project->defaultEnvironment->fresh()->api_key_version)->toBe(2)
         ->and(projectsTableContains($shown['key']))->toBeFalse()
         ->and(json_encode($response->inertiaPage()['props']))->not->toContain($shown['key']);
 
@@ -170,8 +173,8 @@ it('rejects a grace period that is not one of the offered choices', function (mi
         ->post(route('settings.projects.rotate-key', $project->slug), $input)
         ->assertSessionHasErrors('grace_hours');
 
-    expect($project->fresh()->api_key_version)->toBe(1)
-        ->and(Project::findByApiKey('pk_test_old')?->id)->toBe($project->id);
+    expect($project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
+        ->and(Environment::findByApiKey('pk_test_old')?->project_id)->toBe($project->id);
 })->with([
     'missing' => [[]],
     'not offered' => [['grace_hours' => 5]],
@@ -193,8 +196,8 @@ it('lets only super admins rotate a key', function () {
     $this->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
         ->assertRedirect(route('login'));
 
-    expect($project->fresh()->api_key_version)->toBe(1)
-        ->and(Project::findByApiKey('pk_test_old')?->id)->toBe($project->id);
+    expect($project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
+        ->and(Environment::findByApiKey('pk_test_old')?->project_id)->toBe($project->id);
 });
 
 it('does not rotate the key of a project that is being deleted', function () {

@@ -249,8 +249,8 @@ class DemoDataSeeder extends Seeder
             'sampling_rate' => 1.0,
             'retention_days' => 30,
         ]);
-        $apiKey = $project->issueApiKey();
         $project->save();
+        $apiKey = $project->createDefaultEnvironment();
 
         $this->command?->info("Demo API key for {$project->name} (only its hash is stored, copy it now): {$apiKey}");
 

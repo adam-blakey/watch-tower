@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\Project;
+use App\Models\Environment;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -17,21 +17,22 @@ class NightwatchAgentAuthController extends Controller
      * The response shape is the contract enforced by agent.phar's
      * IngestDetailsRepository::parseResponse.
      *
-     * The token records the version of the key the agent authenticated with, so
-     * rotating the key revokes the tokens issued under it.
+     * The token records the environment and the version of the key the agent
+     * authenticated with, so rotating that key revokes the tokens issued under it.
      */
     public function __invoke(Request $request): JsonResponse
     {
-        /** @var Project $project */
-        $project = $request->attributes->get('watch_project');
+        /** @var Environment $environment */
+        $environment = $request->attributes->get('watch_environment');
 
         $expiresIn = 3600;
         $refreshIn = 1800;
 
         $token = Crypt::encryptString(json_encode([
-            'project_id' => $project->id,
+            'project_id' => $environment->project_id,
+            'environment_id' => $environment->id,
             'expires_at' => time() + $expiresIn,
-            'key_version' => $project->apiKeyVersionFor((string) $request->bearerToken()),
+            'key_version' => $environment->apiKeyVersionFor((string) $request->bearerToken()),
         ], JSON_THROW_ON_ERROR));
 
         return response()->json([

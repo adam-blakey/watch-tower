@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Environment;
 use App\Models\Organization;
 use App\Models\Project;
 use Database\Seeders\DemoDataSeeder;
@@ -32,9 +33,9 @@ it('prints the key of a new demo project, because only its hash is stored', func
     preg_match('/(pk_\w+)$/', $printed[0], $matches);
 
     expect($matches)->toHaveCount(2)
-        ->and(Project::findByApiKey($matches[1])?->id)->toBe($project->id)
-        ->and($project->fresh()->api_key_prefix)->toBe(substr($matches[1], 0, 10))
-        ->and(json_encode($project->fresh()->getAttributes()))->not->toContain($matches[1]);
+        ->and(Environment::findByApiKey($matches[1])?->project_id)->toBe($project->id)
+        ->and($project->defaultEnvironment->api_key_prefix)->toBe(substr($matches[1], 0, 10))
+        ->and(json_encode($project->defaultEnvironment->getAttributes()))->not->toContain($matches[1]);
 });
 
 it('leaves the key of an existing demo project alone', function () {
@@ -49,5 +50,5 @@ it('leaves the key of an existing demo project alone', function () {
 
     expect($project->id)->toBe($existing->id)
         ->and($printed[0])->toContain('already exists')
-        ->and(Project::findByApiKey('pk_test_existing')?->id)->toBe($existing->id);
+        ->and(Environment::findByApiKey('pk_test_existing')?->project_id)->toBe($existing->id);
 });

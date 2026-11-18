@@ -46,7 +46,8 @@ class ProjectAdminController extends Controller
         $projects = Project::query()
             ->orderBy('name')
             ->withCount('admins')
-            ->get(['id', 'name', 'slug', 'description', 'api_key_prefix', 'api_key_last_used_at', 'previous_api_key_hash', 'previous_api_key_expires_at', 'sampling_rate', 'retention_days', 'created_at']);
+            ->with('defaultEnvironment')
+            ->get(['id', 'name', 'slug', 'description', 'sampling_rate', 'retention_days', 'created_at']);
 
         /*
          * Issues live in the telemetry database, so their counts cannot be a subquery on the projects query.
@@ -64,10 +65,10 @@ class ProjectAdminController extends Controller
                 'name' => $project->name,
                 'slug' => $project->slug,
                 'description' => $project->description,
-                'api_key_prefix' => $project->api_key_prefix,
-                'api_key_last_used_at' => $project->api_key_last_used_at?->toISOString(),
-                'previous_api_key_expires_at' => $project->hasActivePreviousApiKey()
-                    ? $project->previous_api_key_expires_at->toISOString()
+                'api_key_prefix' => $project->defaultEnvironment?->api_key_prefix,
+                'api_key_last_used_at' => $project->defaultEnvironment?->api_key_last_used_at?->toISOString(),
+                'previous_api_key_expires_at' => $project->defaultEnvironment?->hasActivePreviousApiKey()
+                    ? $project->defaultEnvironment->previous_api_key_expires_at->toISOString()
                     : null,
                 'sampling_rate' => $project->sampling_rate,
                 'retention_days' => $project->retention_days,
@@ -114,8 +115,11 @@ class ProjectAdminController extends Controller
             'sampling_rate' => $validated['sampling_rate'],
             'retention_days' => $validated['retention_days'],
         ]);
-        $apiKey = $project->issueApiKey();
-        $project->save();
+        $apiKey = $project->getConnection()->transaction(function () use ($project): string {
+            $project->save();
+
+            return $project->createDefaultEnvironment();
+        });
 
         $project->admins()->sync($validated['admin_ids'] ?? []);
 
@@ -125,7 +129,7 @@ class ProjectAdminController extends Controller
     }
 
     /**
-     * Replace the project's API key.
+     * Replace the API key of the project's default environment.
      *
      * The new key is flashed so the next page can show it once; only its hash
      * is stored. The old key stops working at once or, with a grace period,
@@ -137,7 +141,7 @@ class ProjectAdminController extends Controller
             'grace_hours' => ['required', 'integer', Rule::in(self::ROTATION_GRACE_HOURS)],
         ]);
 
-        $apiKey = $project->rotateApiKey($validated['grace_hours'] * 3600);
+        $apiKey = $project->defaultEnvironment()->firstOrFail()->rotateApiKey($validated['grace_hours'] * 3600);
 
         return redirect()->route('settings.projects.index')
             ->with('success', "API key rotated for '{$project->name}'.")

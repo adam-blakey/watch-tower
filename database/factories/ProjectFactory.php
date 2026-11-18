@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Environment;
 use App\Models\Organization;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -21,18 +22,29 @@ class ProjectFactory extends Factory
             'name' => Str::title($name),
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(5)),
             'description' => fake()->sentence(),
-            ...Project::apiKeyAttributes('pk_test_'.Str::random(40)),
             'sampling_rate' => 1.0,
             'retention_days' => 30,
         ];
     }
 
     /**
-     * Give the project a known plain-text API key for testing. Only its hash
-     * and display prefix are stored, as for a real project.
+     * Give every created project its default environment, as creating one in Settings does.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Project $project): void {
+            Environment::factory()->for($project)->default()->create();
+        });
+    }
+
+    /**
+     * Give the project's default environment a known plain-text API key for
+     * testing. Only its hash and display prefix are stored, as for a real key.
      */
     public function withApiKey(string $key): static
     {
-        return $this->state(fn () => Project::apiKeyAttributes($key));
+        return $this->afterCreating(function (Project $project) use ($key): void {
+            $project->defaultEnvironment->forceFill(Environment::apiKeyAttributes($key))->save();
+        });
     }
 }
