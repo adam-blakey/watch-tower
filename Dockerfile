@@ -18,13 +18,17 @@
 ARG PHP_IMAGE=serversideup/php:8.4-frankenphp-trixie-v5.0.2@sha256:a535961aa62a118860292b3b04f689ee56a07f47938a614660e67fe98ff6853f
 ARG NODE_IMAGE=node:24-bookworm-slim
 
+# ---------------------------------------------------------------------------
 # Node.js source. Only the binary and npm are borrowed from this image.
+# ---------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS node
 
+# ---------------------------------------------------------------------------
 # Build stage: PHP dependencies and front-end assets.
 #
 # `npm run build` needs PHP and the app's vendor/ directory, because the
 # Wayfinder Vite plugin runs `php artisan wayfinder:generate` on build start.
+# ---------------------------------------------------------------------------
 FROM ${PHP_IMAGE} AS build
 
 USER root
@@ -61,7 +65,9 @@ RUN mkdir /dist \
         artisan composer.json composer.lock \
         /dist/
 
+# ---------------------------------------------------------------------------
 # Runtime stage
+# ---------------------------------------------------------------------------
 FROM ${PHP_IMAGE} AS runtime
 
 USER root
