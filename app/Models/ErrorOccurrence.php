@@ -37,9 +37,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class ErrorOccurrence extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<ErrorOccurrenceFactory> */

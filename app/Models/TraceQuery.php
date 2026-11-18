@@ -32,9 +32,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class TraceQuery extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<TraceQueryFactory> */

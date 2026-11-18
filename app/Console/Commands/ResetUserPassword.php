@@ -18,9 +18,6 @@ use Illuminate\Validation\Rules\Password;
 #[Description('Set a new password for a user')]
 class ResetUserPassword extends Command
 {
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $user = User::query()->where('email', $this->argument('email'))->first();

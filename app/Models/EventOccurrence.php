@@ -23,9 +23,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class EventOccurrence extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<EventOccurrenceFactory> */

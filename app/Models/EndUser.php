@@ -25,9 +25,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class EndUser extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<EndUserFactory> */

@@ -3,9 +3,6 @@
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 
-/**
- * The scheduled event whose command contains the given text.
- */
 function scheduledEventFor(string $command): ?Event
 {
     return collect(app(Schedule::class)->events())

@@ -630,9 +630,6 @@ final class TableMover
         }
     }
 
-    /**
-     * Create a table from its frozen schema.
-     */
     private function createTable(Builder $schema, MovedTable $table, bool $legacySchema, string $driver): void
     {
         $schema->create($table->name, function (Blueprint $blueprint) use ($table, $legacySchema, $driver): void {

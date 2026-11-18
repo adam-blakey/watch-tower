@@ -62,11 +62,6 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
-{
-    // ..
-}
-
 function ingestToken(int|string $projectId, int $expiresInSeconds = 3600): string
 {
     return Crypt::encryptString(json_encode([

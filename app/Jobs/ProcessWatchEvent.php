@@ -33,7 +33,6 @@ class ProcessWatchEvent implements ShouldQueue
         ?string $environmentId = null,
     ) {
         $this->environmentId = $environmentId;
-        // $this->onQueue('watch-events');
     }
 
     /**

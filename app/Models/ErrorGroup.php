@@ -38,9 +38,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class ErrorGroup extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<ErrorGroupFactory> */
