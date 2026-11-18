@@ -20,11 +20,12 @@ class UserStats
      *   request_buckets: list<array{bucket:string,authenticated:int,guest:int}>
      * }
      */
-    public function summary(Project $project, TimeRange $range): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $base = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         $totals = (clone $base)
@@ -90,11 +91,12 @@ class UserStats
      *   queued_jobs:int, exceptions:int, last_seen:string|null
      * }>
      */
-    public function list(Project $project, TimeRange $range, ?string $search = null): array
+    public function list(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
         $trace = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->selectRaw('user_identifier AS id, MAX(user_email) AS email, MAX(user_name) AS name')
@@ -109,6 +111,7 @@ class UserStats
 
         $jobs = QueueJobRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('dispatched_at', [$range->from, $range->to])
             ->selectRaw('user_identifier AS id, COUNT(*) AS queued_jobs')
@@ -117,6 +120,7 @@ class UserStats
 
         $errors = ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->selectRaw('user_identifier AS id, COUNT(*) AS exceptions')
@@ -166,17 +170,19 @@ class UserStats
      *   recent_requests: list<array{id:string,method:string,uri:string,status_code:int|null,duration_ms:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function detail(Project $project, string $userIdentifier, TimeRange $range): ?array
+    public function detail(Project $project, string $userIdentifier, TimeRange $range, EnvironmentFilter $environments): ?array
     {
         $base = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('user_identifier', $userIdentifier)
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         $profile = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('user_identifier', $userIdentifier)
             ->orderByDesc('occurred_at')
             ->first(['user_identifier', 'user_email', 'user_name', 'occurred_at']);
@@ -261,6 +267,7 @@ class UserStats
 
         $topJobs = QueueJobRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('user_identifier', $userIdentifier)
             ->whereBetween('dispatched_at', [$range->from, $range->to])
             ->selectRaw('job_class, COUNT(*) AS count')

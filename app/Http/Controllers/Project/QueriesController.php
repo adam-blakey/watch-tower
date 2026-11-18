@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Project;
 
 use App\Http\Controllers\Controller;
 use App\Models\Project;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\QueryStats;
 use App\Watch\Stats\TimeRange;
 use Illuminate\Http\Request;
@@ -15,6 +16,7 @@ class QueriesController extends Controller
     public function index(Project $project, Request $request, QueryStats $stats): Response
     {
         $range = TimeRange::fromLabel($this->stringFilter($request, 'range') ?? '24h');
+        $environments = EnvironmentFilter::fromRequest($request, $project);
         $search = $this->stringFilter($request, 'search');
         $connection = $this->stringFilter($request, 'connection');
         $sort = $this->stringFilter($request, 'sort');
@@ -22,9 +24,9 @@ class QueriesController extends Controller
         $page = max(1, (int) $request->integer('page', 1));
 
         return Inertia::render('projects/queries/index', [
-            'summary' => $stats->summary($project, $range, connection: $connection),
-            'queries' => $stats->paginatedQueries($project, $range, $search, $sort, $dir, $page, 25, connection: $connection),
-            'connections' => $stats->connections($project, $range, $connection),
+            'summary' => $stats->summary($project, $range, $environments, connection: $connection),
+            'queries' => $stats->paginatedQueries($project, $range, $environments, $search, $sort, $dir, $page, 25, connection: $connection),
+            'connections' => $stats->connections($project, $range, $environments, $connection),
             'selectedRange' => $range->label,
             'filters' => [
                 'search' => $search,
@@ -38,9 +40,10 @@ class QueriesController extends Controller
     public function show(Project $project, Request $request, QueryStats $stats, string $query): Response
     {
         $range = TimeRange::fromLabel($this->stringFilter($request, 'range') ?? '7d');
+        $environments = EnvironmentFilter::fromRequest($request, $project);
         $connection = $this->stringFilter($request, 'connection');
 
-        $detail = $stats->queryDetail($project, $range, $query, $connection);
+        $detail = $stats->queryDetail($project, $range, $environments, $query, $connection);
 
         abort_if($detail === null, 404);
 

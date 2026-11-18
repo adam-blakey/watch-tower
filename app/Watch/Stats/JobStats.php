@@ -16,6 +16,7 @@ class JobStats
     public function paginatedJobs(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -23,7 +24,7 @@ class JobStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->jobs($project, $range, $search),
+            items: $this->jobs($project, $range, $environments, $search),
             sortable: [
                 'job_class' => 'string',
                 'queued' => 'numeric',
@@ -48,9 +49,9 @@ class JobStats
      *   buckets: list<array{bucket:string,processed:int,released:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $jobClass = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $jobClass = null): array
     {
-        $base = $this->baseQuery($project, $range, $jobClass);
+        $base = $this->baseQuery($project, $range, $environments, $jobClass);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -83,16 +84,16 @@ class JobStats
                 'p95_ms' => $this->percentile($durations, 0.95),
                 'threshold_ms' => null,
             ],
-            'buckets' => $this->buckets($project, $range, $jobClass),
+            'buckets' => $this->buckets($project, $range, $environments, $jobClass),
         ];
     }
 
     /**
      * @return list<array{job_class:string,queued:int,processed:int,released:int,failed:int,total:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function jobs(Project $project, TimeRange $range, ?string $search = null): array
+    public function jobs(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('job_class', 'like', '%'.$search.'%');
@@ -109,7 +110,7 @@ class JobStats
             ->groupBy('job_class')
             ->get();
 
-        $durationsByClass = $this->durationsByJob($project, $range, $search);
+        $durationsByClass = $this->durationsByJob($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByClass) {
@@ -140,15 +141,15 @@ class JobStats
      *   attempts: list<array{id:string,memory_peak_kb:int|null,connection:string|null,queue:string|null,attempt:int,status:string,duration_ms:int|null,lazy_loads:int|null,hydrated_models:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function jobDetail(Project $project, TimeRange $range, string $jobClass): ?array
+    public function jobDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $jobClass): ?array
     {
-        $base = $this->baseQuery($project, $range, $jobClass);
+        $base = $this->baseQuery($project, $range, $environments, $jobClass);
 
         if ((clone $base)->doesntExist()) {
             return null;
         }
 
-        $summary = $this->summary($project, $range, $jobClass);
+        $summary = $this->summary($project, $range, $environments, $jobClass);
 
         $attempts = (clone $base)
             ->orderByDesc('created_at')
@@ -180,10 +181,11 @@ class JobStats
     /**
      * @return Builder<QueueJobRun>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $jobClass = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $jobClass = null): Builder
     {
         $query = QueueJobRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('created_at', [$range->from, $range->to]);
 
         if ($jobClass !== null) {
@@ -196,13 +198,13 @@ class JobStats
     /**
      * @return list<array{bucket:string,processed:int,released:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $jobClass = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $jobClass = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $jobClass)
+        $rows = $this->baseQuery($project, $range, $environments, $jobClass)
             ->orderBy('created_at')
             ->get(['status', 'duration_ms', 'created_at']);
 
@@ -254,9 +256,9 @@ class JobStats
     /**
      * @return array<string, list<int>>
      */
-    private function durationsByJob(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByJob(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('job_class', 'like', '%'.$search.'%');

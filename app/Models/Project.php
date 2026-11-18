@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
 
 #[Fillable([
     'organization_id',
@@ -104,6 +105,27 @@ class Project extends Model
     public function defaultEnvironment(): HasOne
     {
         return $this->hasOne(Environment::class)->where('is_default', true);
+    }
+
+    /**
+     * Number of rows per environment name, counting rows without an `environment_id` for the default environment.
+     *
+     * @param  Builder<covariant Model>|HasMany<covariant Model, covariant Model>  $rows
+     * @return list<array{environment:string,count:int}>
+     */
+    public function environmentCounts(Builder|HasMany $rows): array
+    {
+        $names = $this->environments->pluck('name', 'id');
+        $defaultName = $this->environments->firstWhere('is_default', true)?->name ?? 'unknown';
+
+        return $rows
+            ->select('environment_id', DB::raw('count(*) as total'))
+            ->groupBy('environment_id')
+            ->get()
+            ->groupBy(fn ($row) => $row->environment_id === null ? $defaultName : ($names[$row->environment_id] ?? 'unknown'))
+            ->map(fn ($group, $name) => ['environment' => $name, 'count' => (int) $group->sum('total')])
+            ->values()
+            ->all();
     }
 
     /**

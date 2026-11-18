@@ -6,9 +6,18 @@ export type ProjectSummary = {
     name: string;
 };
 
+export type EnvironmentSummary = {
+    id: string;
+    slug: string;
+    name: string;
+    is_default: boolean;
+};
+
 export type CurrentProject = ProjectSummary & {
     environment: string;
     open_issues_count: number;
+    environments: EnvironmentSummary[];
+    selected_environments: string[];
 };
 
 export type MaintenanceProblem =

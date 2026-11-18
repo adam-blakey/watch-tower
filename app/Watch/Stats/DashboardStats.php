@@ -19,7 +19,7 @@ class DashboardStats
      *   jobs: array<string, mixed>
      * }
      */
-    public function forProject(Project $project, TimeRange $range): array
+    public function forProject(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         return [
             'range' => [
@@ -27,20 +27,21 @@ class DashboardStats
                 'to' => $range->to->toIso8601String(),
                 'label' => $range->label,
             ],
-            'activity' => $this->activity($project, $range),
-            'exceptions' => $this->exceptions($project, $range),
-            'jobs' => $this->jobs($project, $range),
+            'activity' => $this->activity($project, $range, $environments),
+            'exceptions' => $this->exceptions($project, $range, $environments),
+            'jobs' => $this->jobs($project, $range, $environments),
         ];
     }
 
     /**
      * @return array<string, mixed>
      */
-    private function activity(Project $project, TimeRange $range): array
+    private function activity(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $traces = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         $stats = (clone $traces)
@@ -59,7 +60,7 @@ class DashboardStats
             ->pluck('duration_ms')
             ->all();
 
-        $buckets = $this->bucketTraces($project, $range);
+        $buckets = $this->bucketTraces($project, $range, $environments);
 
         return [
             'requests' => [
@@ -82,7 +83,7 @@ class DashboardStats
     /**
      * @return list<array{bucket: string, success: int, client_error: int, server_error: int, avg_duration: float|null, p95_duration: float|null}>
      */
-    private function bucketTraces(Project $project, TimeRange $range): array
+    private function bucketTraces(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
@@ -91,6 +92,7 @@ class DashboardStats
         $rows = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->orderBy('occurred_at')
             ->get(['status_code', 'duration_ms', 'occurred_at']);
@@ -146,10 +148,11 @@ class DashboardStats
     /**
      * @return array<string, mixed>
      */
-    private function exceptions(Project $project, TimeRange $range): array
+    private function exceptions(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $count = ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->count();
 
@@ -162,10 +165,11 @@ class DashboardStats
     /**
      * @return array<string, mixed>
      */
-    private function jobs(Project $project, TimeRange $range): array
+    private function jobs(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $jobs = QueueJobRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('created_at', [$range->from, $range->to]);
 
         $stats = (clone $jobs)
@@ -195,14 +199,14 @@ class DashboardStats
                 'avg_ms' => $stats?->avg_duration !== null ? (float) $stats->avg_duration : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->bucketJobs($project, $range),
+            'buckets' => $this->bucketJobs($project, $range, $environments),
         ];
     }
 
     /**
      * @return list<array{bucket: string, total: int, failed: int}>
      */
-    private function bucketJobs(Project $project, TimeRange $range): array
+    private function bucketJobs(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
@@ -210,6 +214,7 @@ class DashboardStats
 
         $rows = QueueJobRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('created_at', [$range->from, $range->to])
             ->orderBy('created_at')
             ->get(['status', 'created_at']);

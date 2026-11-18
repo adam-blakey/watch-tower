@@ -16,6 +16,7 @@ class CommandStats
     public function paginatedCommands(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -23,7 +24,7 @@ class CommandStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->commands($project, $range, $search),
+            items: $this->commands($project, $range, $environments, $search),
             sortable: [
                 'command' => 'string',
                 'successful' => 'numeric',
@@ -46,9 +47,9 @@ class CommandStats
      *   buckets: list<array{bucket:string,successful:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $command = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $command = null): array
     {
-        $base = $this->baseQuery($project, $range, $command);
+        $base = $this->baseQuery($project, $range, $environments, $command);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -77,16 +78,16 @@ class CommandStats
                 'p95_ms' => $this->percentile($durations, 0.95),
                 'threshold_ms' => null,
             ],
-            'buckets' => $this->buckets($project, $range, $command),
+            'buckets' => $this->buckets($project, $range, $environments, $command),
         ];
     }
 
     /**
      * @return list<array{command:string,successful:int,failed:int,total:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function commands(Project $project, TimeRange $range, ?string $search = null): array
+    public function commands(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('command', 'like', '%'.$search.'%');
@@ -101,7 +102,7 @@ class CommandStats
             ->groupBy('command')
             ->get();
 
-        $durationsByCommand = $this->durationsByCommand($project, $range, $search);
+        $durationsByCommand = $this->durationsByCommand($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByCommand) {
@@ -130,15 +131,15 @@ class CommandStats
      *   calls: list<array{id:string,memory_peak_kb:int|null,command:string,exit_code:int|null,status:string,duration_ms:int|null,lazy_loads:int|null,hydrated_models:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function commandDetail(Project $project, TimeRange $range, string $command): ?array
+    public function commandDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $command): ?array
     {
-        $base = $this->baseQuery($project, $range, $command);
+        $base = $this->baseQuery($project, $range, $environments, $command);
 
         if ((clone $base)->doesntExist()) {
             return null;
         }
 
-        $summary = $this->summary($project, $range, $command);
+        $summary = $this->summary($project, $range, $environments, $command);
 
         $calls = (clone $base)
             ->orderByDesc('occurred_at')
@@ -169,10 +170,11 @@ class CommandStats
     /**
      * @return Builder<CommandRun>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $command = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $command = null): Builder
     {
         $query = CommandRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($command !== null) {
@@ -185,13 +187,13 @@ class CommandStats
     /**
      * @return list<array{bucket:string,successful:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $command = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $command = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $command)
+        $rows = $this->baseQuery($project, $range, $environments, $command)
             ->orderBy('occurred_at')
             ->get(['status', 'duration_ms', 'occurred_at']);
 
@@ -239,9 +241,9 @@ class CommandStats
     /**
      * @return array<string, list<int>>
      */
-    private function durationsByCommand(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByCommand(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('command', 'like', '%'.$search.'%');

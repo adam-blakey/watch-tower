@@ -17,13 +17,14 @@ class LogStats
     public function paginated(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $level,
         ?string $userName,
         int $page,
         int $perPage,
     ): LengthAwarePaginator {
-        $query = $this->baseQuery($project, $range);
+        $query = $this->baseQuery($project, $range, $environments);
 
         if ($level !== null && $level !== '' && in_array($level, self::LEVELS, true)) {
             $query->where('level', $level);
@@ -55,9 +56,9 @@ class LogStats
     /**
      * @return list<string>
      */
-    public function users(Project $project, TimeRange $range): array
+    public function users(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
-        return $this->baseQuery($project, $range)
+        return $this->baseQuery($project, $range, $environments)
             ->whereNotNull('user_name')
             ->select('user_name')
             ->distinct()
@@ -70,10 +71,11 @@ class LogStats
     /**
      * @return Builder<LogEntry>
      */
-    private function baseQuery(Project $project, TimeRange $range): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments): Builder
     {
         return LogEntry::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
     }
 }

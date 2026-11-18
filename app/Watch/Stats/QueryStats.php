@@ -16,6 +16,7 @@ class QueryStats
     public function paginatedQueries(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -24,7 +25,7 @@ class QueryStats
         ?string $connection = null,
     ): LengthAwarePaginator {
         $paginator = StatsPaginator::paginate(
-            items: $this->queries($project, $range, $search, $connection, withLocations: false),
+            items: $this->queries($project, $range, $environments, $search, $connection, withLocations: false),
             sortable: [
                 'sql' => 'string',
                 'connection' => 'string',
@@ -41,7 +42,7 @@ class QueryStats
 
         // Locations are looked up for the statements on this page only, which bounds the cost by the page size.
         return $paginator->setCollection(
-            collect($this->withLocations($project, $range, $search, array_values($paginator->items()), $connection)),
+            collect($this->withLocations($project, $range, $environments, $search, array_values($paginator->items()), $connection)),
         );
     }
 
@@ -51,9 +52,9 @@ class QueryStats
      *
      * @return list<string>
      */
-    public function connections(Project $project, TimeRange $range, ?string $selected = null): array
+    public function connections(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $selected = null): array
     {
-        return $this->baseQuery($project, $range)
+        return $this->baseQuery($project, $range, $environments)
             ->whereNotNull('connection_name')
             ->select('connection_name')
             ->distinct()
@@ -72,9 +73,9 @@ class QueryStats
      *   buckets: list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $sql = null, ?string $connection = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $sql = null, ?string $connection = null): array
     {
-        $base = $this->baseQuery($project, $range, $sql, $connection);
+        $base = $this->baseQuery($project, $range, $environments, $sql, $connection);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -98,16 +99,16 @@ class QueryStats
                 'avg_ms' => $stats?->avg_duration !== null ? (float) $stats->avg_duration : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->buckets($project, $range, $sql, $connection),
+            'buckets' => $this->buckets($project, $range, $environments, $sql, $connection),
         ];
     }
 
     /**
      * @return list<array{hash:string,sql:string,connection:string|null,total:int,total_ms:float,avg_ms:float|null,p95_ms:float|null,location:string|null,locations_count:int}>
      */
-    public function queries(Project $project, TimeRange $range, ?string $search = null, ?string $connection = null, bool $withLocations = true): array
+    public function queries(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null, ?string $connection = null, bool $withLocations = true): array
     {
-        $base = $this->baseQuery($project, $range, connection: $connection);
+        $base = $this->baseQuery($project, $range, $environments, connection: $connection);
 
         if ($search !== null && $search !== '') {
             $base->where('sql', 'like', '%'.$search.'%');
@@ -122,7 +123,7 @@ class QueryStats
             ->groupBy('sql')
             ->get();
 
-        $durationsBySql = $this->durationsBySql($project, $range, $search, $connection);
+        $durationsBySql = $this->durationsBySql($project, $range, $environments, $search, $connection);
 
         $items = $rows
             ->map(function ($row) use ($durationsBySql) {
@@ -145,7 +146,7 @@ class QueryStats
             ->values()
             ->all();
 
-        return $withLocations ? $this->withLocations($project, $range, $search, $items, $connection) : $items;
+        return $withLocations ? $this->withLocations($project, $range, $environments, $search, $items, $connection) : $items;
     }
 
     /**
@@ -161,9 +162,9 @@ class QueryStats
      *   calls: list<array{id:string,duration_ms:float,row_count:int|null,file:string|null,line:int|null,connection_type:string|null,is_slow:bool,is_n_plus_one:bool,occurred_at:string|null}>
      * }|null
      */
-    public function queryDetail(Project $project, TimeRange $range, string $hash, ?string $connection = null): ?array
+    public function queryDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $hash, ?string $connection = null): ?array
     {
-        $sql = $this->baseQuery($project, $range, connection: $connection)
+        $sql = $this->baseQuery($project, $range, $environments, connection: $connection)
             ->select('sql')
             ->get()
             ->pluck('sql')
@@ -174,12 +175,12 @@ class QueryStats
             return null;
         }
 
-        $summary = $this->summary($project, $range, $sql, $connection);
+        $summary = $this->summary($project, $range, $environments, $sql, $connection);
 
-        $connectionName = $this->baseQuery($project, $range, $sql, $connection)
+        $connectionName = $this->baseQuery($project, $range, $environments, $sql, $connection)
             ->value('connection_name');
 
-        $connectionTypes = $this->baseQuery($project, $range, $sql, $connection)
+        $connectionTypes = $this->baseQuery($project, $range, $environments, $sql, $connection)
             ->whereNotNull('connection_type')
             ->distinct()
             ->orderBy('connection_type')
@@ -187,7 +188,7 @@ class QueryStats
             ->map(fn ($value) => (string) $value)
             ->all();
 
-        $locationGroups = $this->baseQuery($project, $range, $sql, $connection)
+        $locationGroups = $this->baseQuery($project, $range, $environments, $sql, $connection)
             ->whereNotNull('file')
             ->select('file', 'line')
             ->groupBy('file', 'line');
@@ -213,7 +214,7 @@ class QueryStats
             ])
             ->all();
 
-        $calls = $this->baseQuery($project, $range, $sql, $connection)
+        $calls = $this->baseQuery($project, $range, $environments, $sql, $connection)
             ->orderByDesc('occurred_at')
             ->limit(200)
             ->get(['id', 'duration_ms', 'row_count', 'file', 'line', 'connection_type', 'is_slow', 'is_n_plus_one', 'occurred_at'])
@@ -246,10 +247,11 @@ class QueryStats
     /**
      * @return Builder<TraceQuery>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $sql = null, ?string $connection = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $sql = null, ?string $connection = null): Builder
     {
         $query = TraceQuery::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($sql !== null) {
@@ -266,13 +268,13 @@ class QueryStats
     /**
      * @return list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $sql = null, ?string $connection = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $sql = null, ?string $connection = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $sql, $connection)
+        $rows = $this->baseQuery($project, $range, $environments, $sql, $connection)
             ->orderBy('occurred_at')
             ->get(['duration_ms', 'occurred_at']);
 
@@ -310,9 +312,9 @@ class QueryStats
     /**
      * @return array<string, list<float>>
      */
-    private function durationsBySql(Project $project, TimeRange $range, ?string $search, ?string $connection = null): array
+    private function durationsBySql(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search, ?string $connection = null): array
     {
-        $query = $this->baseQuery($project, $range, connection: $connection);
+        $query = $this->baseQuery($project, $range, $environments, connection: $connection);
 
         if ($search !== null && $search !== '') {
             $query->where('sql', 'like', '%'.$search.'%');
@@ -339,9 +341,9 @@ class QueryStats
      * @param  list<array<string, mixed>>  $items
      * @return list<array<string, mixed>>
      */
-    private function withLocations(Project $project, TimeRange $range, ?string $search, array $items, ?string $connection = null): array
+    private function withLocations(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search, array $items, ?string $connection = null): array
     {
-        $locationsBySql = $this->locationsBySql($project, $range, $search, array_column($items, 'sql'), $connection);
+        $locationsBySql = $this->locationsBySql($project, $range, $environments, $search, array_column($items, 'sql'), $connection);
 
         return array_map(function (array $item) use ($locationsBySql): array {
             $locations = $locationsBySql[$item['sql']] ?? [];
@@ -361,13 +363,13 @@ class QueryStats
      * @param  list<string>  $statements
      * @return array<string, list<array{file:string,line:int|null,total:int}>>
      */
-    private function locationsBySql(Project $project, TimeRange $range, ?string $search, array $statements, ?string $connection = null): array
+    private function locationsBySql(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search, array $statements, ?string $connection = null): array
     {
         if ($statements === []) {
             return [];
         }
 
-        $query = $this->baseQuery($project, $range, connection: $connection)->whereNotNull('file')->whereIn('sql', $statements);
+        $query = $this->baseQuery($project, $range, $environments, connection: $connection)->whereNotNull('file')->whereIn('sql', $statements);
 
         if ($search !== null && $search !== '') {
             $query->where('sql', 'like', '%'.$search.'%');

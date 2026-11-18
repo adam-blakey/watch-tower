@@ -4,6 +4,7 @@ use App\Models\LogEntry;
 use App\Models\Project;
 use App\Models\User;
 use App\Watch\Databases;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\LogStats;
 use App\Watch\Stats\TimeRange;
 use App\Watch\TelemetryPruner;
@@ -218,7 +219,7 @@ describe('choosing between the index and LIKE', function () {
         $logs->flushQueryLog();
         $logs->enableQueryLog();
 
-        app(LogStats::class)->paginated($project, TimeRange::fromLabel('24h'), $term, $level, null, 1, 50);
+        app(LogStats::class)->paginated($project, TimeRange::fromLabel('24h'), new EnvironmentFilter, $term, $level, null, 1, 50);
 
         $usedIndex = collect($logs->getQueryLog())->contains(fn (array $entry): bool => str_contains($entry['query'], 'log_entries_fts'));
         $logs->disableQueryLog();
@@ -245,7 +246,7 @@ describe('choosing between the index and LIKE', function () {
         expect(searchRanThroughTheIndex($this->project, 'payment'))->toBeTrue()
             ->and(searchRanThroughTheIndex($this->project, 'payment', level: 'error'))->toBeFalse();
 
-        $page = app(LogStats::class)->paginated($this->project, TimeRange::fromLabel('24h'), 'payment error', 'error', null, 1, 50);
+        $page = app(LogStats::class)->paginated($this->project, TimeRange::fromLabel('24h'), new EnvironmentFilter, 'payment error', 'error', null, 1, 50);
 
         expect($page->total())->toBe(3);
     });
@@ -279,7 +280,7 @@ describe('choosing between the index and LIKE', function () {
 describe('the log page filters', function () {
     function paginatedLogs(Project $project, ?string $search, ?string $level = null, ?string $user = null, int $page = 1, int $perPage = 50, string $range = '24h'): array
     {
-        $paginator = app(LogStats::class)->paginated($project, TimeRange::fromLabel($range), $search, $level, $user, $page, $perPage);
+        $paginator = app(LogStats::class)->paginated($project, TimeRange::fromLabel($range), new EnvironmentFilter, $search, $level, $user, $page, $perPage);
 
         return [
             'messages' => collect($paginator->items())->pluck('message')->all(),

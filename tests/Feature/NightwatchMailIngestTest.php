@@ -7,6 +7,7 @@ use App\Models\OutgoingRequest;
 use App\Models\Project;
 use App\Models\Trace;
 use App\Models\User;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\MailStats;
 use App\Watch\Stats\NotificationStats;
 use App\Watch\Stats\OutgoingRequestStats;
@@ -161,9 +162,9 @@ it('counts ingested records in the stats classes', function () {
 
     $range = TimeRange::fromLabel('24h');
 
-    expect((new MailStats)->summary($this->project, $range)['totals']['total'])->toBe(1)
-        ->and((new NotificationStats)->summary($this->project, $range)['totals']['total'])->toBe(1)
-        ->and((new OutgoingRequestStats)->summary($this->project, $range)['totals']['total'])->toBe(1);
+    expect((new MailStats)->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(1)
+        ->and((new NotificationStats)->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(1)
+        ->and((new OutgoingRequestStats)->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(1);
 });
 
 it('lists an ingested mail on the mail page and resolves its detail page', function () {

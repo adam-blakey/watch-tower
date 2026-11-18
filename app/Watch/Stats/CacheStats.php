@@ -19,9 +19,9 @@ class CacheStats
      *   buckets: list<array{bucket:string, hit:int, miss:int, write:int, delete:int}>
      * }
      */
-    public function summary(Project $project, TimeRange $range): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
-        $counts = $this->baseQuery($project, $range)
+        $counts = $this->baseQuery($project, $range, $environments)
             ->selectRaw('operation, COUNT(*) AS total')
             ->groupBy('operation')
             ->pluck('total', 'operation');
@@ -37,7 +37,7 @@ class CacheStats
 
         return [
             'totals' => $totals,
-            'buckets' => $this->buckets($project, $range),
+            'buckets' => $this->buckets($project, $range, $environments),
         ];
     }
 
@@ -47,9 +47,9 @@ class CacheStats
      *   buckets: list<array{bucket:string, write:int, delete:int}>
      * }
      */
-    public function failures(Project $project, TimeRange $range): array
+    public function failures(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
-        $counts = $this->baseQuery($project, $range)
+        $counts = $this->baseQuery($project, $range, $environments)
             ->where('succeeded', false)
             ->whereIn('operation', self::FAILURE_OPERATIONS)
             ->selectRaw('operation, COUNT(*) AS total')
@@ -65,16 +65,16 @@ class CacheStats
 
         return [
             'totals' => $totals,
-            'buckets' => $this->failureBuckets($project, $range),
+            'buckets' => $this->failureBuckets($project, $range, $environments),
         ];
     }
 
     /**
      * @return list<array{key:string, hash:string, hit_pct:float|null, hit:int, miss:int, write:int, delete:int, failures:int, total:int}>
      */
-    public function topKeys(Project $project, TimeRange $range, ?string $search, int $limit = 100): array
+    public function topKeys(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search, int $limit = 100): array
     {
-        $query = $this->baseQuery($project, $range)
+        $query = $this->baseQuery($project, $range, $environments)
             ->selectRaw('`key`')
             ->selectRaw("SUM(CASE WHEN operation = 'hit' THEN 1 ELSE 0 END) AS hit_count")
             ->selectRaw("SUM(CASE WHEN operation = 'miss' THEN 1 ELSE 0 END) AS miss_count")
@@ -121,23 +121,24 @@ class CacheStats
     /**
      * @return Builder<CacheEvent>
      */
-    private function baseQuery(Project $project, TimeRange $range): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments): Builder
     {
         return CacheEvent::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
     }
 
     /**
      * @return list<array{bucket:string, hit:int, miss:int, write:int, delete:int}>
      */
-    private function buckets(Project $project, TimeRange $range): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range)
+        $rows = $this->baseQuery($project, $range, $environments)
             ->orderBy('occurred_at')
             ->get(['operation', 'occurred_at']);
 
@@ -168,13 +169,13 @@ class CacheStats
     /**
      * @return list<array{bucket:string, write:int, delete:int}>
      */
-    private function failureBuckets(Project $project, TimeRange $range): array
+    private function failureBuckets(Project $project, TimeRange $range, EnvironmentFilter $environments): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range)
+        $rows = $this->baseQuery($project, $range, $environments)
             ->where('succeeded', false)
             ->whereIn('operation', self::FAILURE_OPERATIONS)
             ->orderBy('occurred_at')

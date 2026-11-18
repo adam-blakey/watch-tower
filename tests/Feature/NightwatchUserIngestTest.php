@@ -5,6 +5,7 @@ use App\Models\EndUser;
 use App\Models\ErrorOccurrence;
 use App\Models\Project;
 use App\Models\Trace;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\ExceptionStats;
 use App\Watch\Stats\RequestStats;
 use App\Watch\Stats\TimeRange;
@@ -235,7 +236,7 @@ it('lists the user name and email in the users page stats', function () {
         nightwatchRequest($now + 1, 'trace-2'),
     ], $this->token)->assertOk();
 
-    $rows = (new UserStats)->list($this->project, TimeRange::fromLabel('24h'));
+    $rows = (new UserStats)->list($this->project, TimeRange::fromLabel('24h'), new EnvironmentFilter);
 
     expect($rows)->toHaveCount(1)
         ->and($rows[0])
@@ -364,8 +365,8 @@ it('lists a user once in the request and exception filters when their email chan
         ]);
     }
 
-    $requestUsers = (new RequestStats)->topUsers($this->project, $range);
-    $exceptionUsers = (new ExceptionStats)->topUsers($this->project, $range);
+    $requestUsers = (new RequestStats)->topUsers($this->project, $range, new EnvironmentFilter);
+    $exceptionUsers = (new ExceptionStats)->topUsers($this->project, $range, new EnvironmentFilter);
 
     expect($requestUsers)->toHaveCount(1)
         ->and($requestUsers[0]['id'])->toBe('user-1')

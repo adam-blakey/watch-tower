@@ -7,6 +7,7 @@ use App\Models\TraceQuery;
 use App\Watch\EventStore;
 use App\Watch\Fingerprinter;
 use App\Watch\Sampler;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\QueryStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -135,7 +136,7 @@ it('stores fractional query durations and the trace sum from a Nightwatch batch'
     ], $token)->assertOk();
 
     $durations = TraceQuery::orderBy('occurred_at')->get()->map(fn (TraceQuery $query): float => (float) $query->duration_ms)->all();
-    $summary = (new QueryStats)->summary($this->project, new TimeRange(CarbonImmutable::parse('2026-06-30', 'UTC'), CarbonImmutable::now()->addDay(), '30d'));
+    $summary = (new QueryStats)->summary($this->project, new TimeRange(CarbonImmutable::parse('2026-06-30', 'UTC'), CarbonImmutable::now()->addDay(), '30d'), new EnvironmentFilter);
 
     expect($durations)->toBe([1.25, 0.4])
         ->and(Trace::sole()->db_time_ms)->toEqualWithDelta(1.65, 0.0001)

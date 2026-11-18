@@ -16,9 +16,9 @@ class MailStats
      *   buckets: list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $mailableClass = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $mailableClass = null): array
     {
-        $base = $this->baseQuery($project, $range, $mailableClass);
+        $base = $this->baseQuery($project, $range, $environments, $mailableClass);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -43,7 +43,7 @@ class MailStats
                 'avg_ms' => $stats?->avg_duration !== null ? (float) $stats->avg_duration : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->buckets($project, $range, $mailableClass),
+            'buckets' => $this->buckets($project, $range, $environments, $mailableClass),
         ];
     }
 
@@ -53,6 +53,7 @@ class MailStats
     public function paginatedMails(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -60,7 +61,7 @@ class MailStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->mails($project, $range, $search),
+            items: $this->mails($project, $range, $environments, $search),
             sortable: [
                 'mailable_class' => 'string',
                 'count' => 'numeric',
@@ -77,9 +78,9 @@ class MailStats
     /**
      * @return list<array{mailable_class:string,hash:string,count:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function mails(Project $project, TimeRange $range, ?string $search = null): array
+    public function mails(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('mailable_class', 'like', '%'.$search.'%');
@@ -92,7 +93,7 @@ class MailStats
             ->groupBy('mailable_class')
             ->get();
 
-        $durationsByClass = $this->durationsByClass($project, $range, $search);
+        $durationsByClass = $this->durationsByClass($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByClass) {
@@ -120,10 +121,11 @@ class MailStats
      *   sends: list<array{id:string,subject:string|null,mailer:string|null,recipients_count:int,attachments_count:int,duration_ms:int|null,source_type:string|null,source_label:string|null,occurred_at:string|null}>
      * }|null
      */
-    public function mailDetail(Project $project, TimeRange $range, string $hash): ?array
+    public function mailDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $hash): ?array
     {
         $mailableClass = MailSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->select('mailable_class')
             ->get()
@@ -135,10 +137,11 @@ class MailStats
             return null;
         }
 
-        $summary = $this->summary($project, $range, $mailableClass);
+        $summary = $this->summary($project, $range, $environments, $mailableClass);
 
         $sends = MailSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('mailable_class', $mailableClass)
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->orderByDesc('occurred_at')
@@ -179,10 +182,11 @@ class MailStats
     /**
      * @return Builder<MailSend>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $mailableClass = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $mailableClass = null): Builder
     {
         $query = MailSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($mailableClass !== null) {
@@ -195,13 +199,13 @@ class MailStats
     /**
      * @return list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $mailableClass = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $mailableClass = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $mailableClass)
+        $rows = $this->baseQuery($project, $range, $environments, $mailableClass)
             ->orderBy('occurred_at')
             ->get(['duration_ms', 'occurred_at']);
 
@@ -241,9 +245,9 @@ class MailStats
     /**
      * @return array<string, list<float>>
      */
-    private function durationsByClass(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByClass(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('mailable_class', 'like', '%'.$search.'%');

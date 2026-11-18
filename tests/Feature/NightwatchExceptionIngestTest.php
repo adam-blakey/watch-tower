@@ -7,6 +7,7 @@ use App\Models\Trace;
 use App\Models\User;
 use App\Watch\EventStore;
 use App\Watch\Fingerprinter;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\ExceptionStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -133,6 +134,7 @@ it('counts handled and unhandled occurrences separately in the summary', functio
             CarbonImmutable::createFromTimestamp($this->base + 60),
             'custom',
         ),
+        new EnvironmentFilter,
     );
 
     expect($summary['totals'])->toBe(['total' => 2, 'handled' => 1, 'unhandled' => 1]);
@@ -147,7 +149,7 @@ it('lists versions newest first, servers from occurrences and the oldest release
         nightwatchExceptionIngestRecord($this->base + 60, ['deploy' => 'v10.0.0', 'server' => 'web-2', 'php_version' => '8.4.0', 'laravel_version' => '12.1.0']),
     ], $this->token)->assertOk();
 
-    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project));
+    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project), new EnvironmentFilter);
 
     expect($detail['php_versions'])->toBe(['8.4.1', '8.4.0', '8.4.2'])
         ->and($detail['laravel_versions'])->toBe(['12.35.1', '12.1.0', '12.36.0'])
@@ -166,7 +168,7 @@ it('merges the hostname of the request with the hostname of the occurrence', fun
         nightwatchExceptionIngestRecord($this->base, ['trace_id' => 'trace-1', 'server' => 'web-1']),
     ], $this->token)->assertOk();
 
-    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project));
+    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project), new EnvironmentFilter);
 
     expect($detail['servers'])->toEqualCanonicalizing(['web-1', 'web-9']);
 });
@@ -186,7 +188,7 @@ it('falls back to the versions of the group and has no release for older occurre
         'hostname' => null,
     ]);
 
-    $detail = app(ExceptionStats::class)->detail($this->project, $group);
+    $detail = app(ExceptionStats::class)->detail($this->project, $group, new EnvironmentFilter);
 
     expect($detail['php_versions'])->toBe(['8.3.0'])
         ->and($detail['laravel_versions'])->toBe(['11.0.0'])

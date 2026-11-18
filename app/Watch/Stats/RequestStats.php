@@ -29,9 +29,9 @@ class RequestStats
      *   buckets: list<array{bucket:string,success:int,client_error:int,server_error:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $userId = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId = null): array
     {
-        $base = $this->baseQuery($project, $range, $userId);
+        $base = $this->baseQuery($project, $range, $environments, $userId);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -61,16 +61,16 @@ class RequestStats
                 'avg_ms' => $stats?->avg_duration !== null ? (float) $stats->avg_duration : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->buckets($project, $range, $userId),
+            'buckets' => $this->buckets($project, $range, $environments, $userId),
         ];
     }
 
     /**
      * @return list<array{method:string,uri:string,route_name:string|null,route_action:string|null,success:int,client_error:int,server_error:int,total:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function routes(Project $project, TimeRange $range, ?string $userId = null, ?string $search = null): array
+    public function routes(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId = null, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range, $userId);
+        $base = $this->baseQuery($project, $range, $environments, $userId);
 
         if ($search !== null && $search !== '') {
             $like = '%'.$search.'%';
@@ -91,7 +91,7 @@ class RequestStats
             ->groupBy('method', 'uri')
             ->get();
 
-        $durationsPerKey = $this->durationsByRoute($project, $range, $userId, $search);
+        $durationsPerKey = $this->durationsByRoute($project, $range, $environments, $userId, $search);
 
         return $rows
             ->map(function ($row) use ($durationsPerKey) {
@@ -128,9 +128,9 @@ class RequestStats
      *   recent: list<array{id:string,lazy_loads:int|null,hydrated_models:int|null,status_code:int|null,duration_ms:int|null,stages: array{bootstrap: float|null, before_middleware: float|null, action: float|null, render: float|null, after_middleware: float|null, sending: float|null, terminating: float|null},occurred_at:string|null,user_identifier:string|null}>
      * }|null
      */
-    public function routeDetail(Project $project, TimeRange $range, string $method, string $uri, ?string $userId = null): ?array
+    public function routeDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $method, string $uri, ?string $userId = null): ?array
     {
-        $base = $this->baseQuery($project, $range, $userId)
+        $base = $this->baseQuery($project, $range, $environments, $userId)
             ->where('method', $method)
             ->where('uri', $uri);
 
@@ -207,7 +207,7 @@ class RequestStats
                 'avg_ms' => $stats?->avg_ms !== null ? (float) $stats->avg_ms : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->buckets($project, $range, $userId, $method, $uri),
+            'buckets' => $this->buckets($project, $range, $environments, $userId, $method, $uri),
             'recent' => $recent,
         ];
     }
@@ -215,11 +215,12 @@ class RequestStats
     /**
      * @return list<array{id:string,email:string|null,count:int}>
      */
-    public function topUsers(Project $project, TimeRange $range, int $limit = 30): array
+    public function topUsers(Project $project, TimeRange $range, EnvironmentFilter $environments, int $limit = 30): array
     {
         return Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->whereNotNull('user_identifier')
             ->selectRaw('user_identifier AS id, MAX(user_email) AS email, COUNT(*) AS count')
@@ -238,11 +239,12 @@ class RequestStats
     /**
      * @return Builder<Trace>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $userId): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId): Builder
     {
         $query = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($userId !== null && $userId !== '') {
@@ -255,13 +257,13 @@ class RequestStats
     /**
      * @return list<array{bucket:string,success:int,client_error:int,server_error:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $userId, ?string $method = null, ?string $uri = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId, ?string $method = null, ?string $uri = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $query = $this->baseQuery($project, $range, $userId);
+        $query = $this->baseQuery($project, $range, $environments, $userId);
         if ($method !== null) {
             $query->where('method', $method);
         }
@@ -322,9 +324,9 @@ class RequestStats
     /**
      * @return array<string, list<int>>
      */
-    private function durationsByRoute(Project $project, TimeRange $range, ?string $userId, ?string $search): array
+    private function durationsByRoute(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range, $userId)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments, $userId)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $like = '%'.$search.'%';

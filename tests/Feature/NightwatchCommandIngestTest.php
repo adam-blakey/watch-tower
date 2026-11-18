@@ -5,6 +5,7 @@ use App\Models\Project;
 use App\Models\ScheduledTaskRun;
 use App\Models\User;
 use App\Watch\Stats\CommandStats;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\ScheduledTaskStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -73,7 +74,7 @@ it('stores command runs sent through the Nightwatch endpoint', function () {
         ->and($runs[1]->exit_code)->toBe(1)
         ->and($runs[1]->duration_ms)->toBe(500);
 
-    $summary = (new CommandStats)->summary($this->project, $this->range, 'app:sync-users');
+    $summary = (new CommandStats)->summary($this->project, $this->range, new EnvironmentFilter, 'app:sync-users');
 
     expect($summary['totals'])->toBe(['total' => 2, 'successful' => 1, 'failed' => 1]);
 });
@@ -100,7 +101,7 @@ it('stores scheduled task runs and exposes the task detail by hash', function ()
         ->and($processed->next_run_at)->not->toBeNull()
         ->and($processed->exit_code)->toBeNull();
 
-    $detail = (new ScheduledTaskStats)->taskDetail($this->project, $this->range, $hash);
+    $detail = (new ScheduledTaskStats)->taskDetail($this->project, $this->range, new EnvironmentFilter, $hash);
 
     expect($detail)->not->toBeNull()
         ->and($detail['task'])->toBe('php artisan app:prune')

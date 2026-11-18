@@ -11,6 +11,7 @@ use App\Watch\Databases;
 use App\Watch\EventStore;
 use App\Watch\Fingerprinter;
 use App\Watch\Stats\DashboardStats;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\RequestStats;
 use App\Watch\Stats\TimeRange;
 use App\Watch\Stats\UserStats;
@@ -197,29 +198,29 @@ it('does not count stub traces in request totals', function () {
     $dashboard = new DashboardStats;
     $users = new UserStats;
 
-    expect($requests->summary($this->project, $range)['totals']['total'])->toBe(0)
-        ->and($requests->routes($this->project, $range))->toBe([])
-        ->and($dashboard->forProject($this->project, $range)['activity']['requests']['total'])->toBe(0)
-        ->and($users->summary($this->project, $range)['total_requests'])->toBe(0);
+    expect($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(0)
+        ->and($requests->routes($this->project, $range, new EnvironmentFilter))->toBe([])
+        ->and($dashboard->forProject($this->project, $range, new EnvironmentFilter)['activity']['requests']['total'])->toBe(0)
+        ->and($users->summary($this->project, $range, new EnvironmentFilter)['total_requests'])->toBe(0);
 
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => (string) Str::uuid(), 'method' => 'GET', 'uri' => '/real', 'status_code' => 200, 'duration_ms' => 30],
     ]);
 
-    expect($requests->summary($this->project, $range)['totals']['total'])->toBe(1)
-        ->and($requests->routes($this->project, $range))->toHaveCount(1)
-        ->and($requests->routes($this->project, $range)[0]['uri'])->toBe('/real')
-        ->and($dashboard->forProject($this->project, $range)['activity']['requests']['total'])->toBe(1)
-        ->and($users->summary($this->project, $range)['total_requests'])->toBe(1);
+    expect($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(1)
+        ->and($requests->routes($this->project, $range, new EnvironmentFilter))->toHaveCount(1)
+        ->and($requests->routes($this->project, $range, new EnvironmentFilter)[0]['uri'])->toBe('/real')
+        ->and($dashboard->forProject($this->project, $range, new EnvironmentFilter)['activity']['requests']['total'])->toBe(1)
+        ->and($users->summary($this->project, $range, new EnvironmentFilter)['total_requests'])->toBe(1);
 
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $stubOnlyId, 'method' => 'GET', 'uri' => '/filled', 'status_code' => 500, 'duration_ms' => 10],
     ]);
 
-    expect($requests->summary($this->project, $range)['totals']['total'])->toBe(2)
-        ->and($requests->summary($this->project, $range)['totals']['server_error'])->toBe(1);
+    expect($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(2)
+        ->and($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['server_error'])->toBe(1);
 });
 
 it('returns the existing stub when a concurrent job creates it between the lookup and the insert', function () {

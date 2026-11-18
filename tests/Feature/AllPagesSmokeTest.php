@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Project\JobsController;
 use App\Models\CommandRun;
+use App\Models\Environment;
 use App\Models\ErrorGroup;
 use App\Models\IssueComment;
 use App\Models\MailSend;
@@ -117,6 +118,12 @@ it('serves every project and settings page over a full demo data set', function 
 
     $this->actingAs($admin);
     expectEveryPageToLoad($this, $projectPages);
+
+    Environment::factory()->for($project)->create(['name' => 'Staging', 'slug' => 'staging']);
+    expectEveryPageToLoad($this, array_map(
+        fn (string $url): string => $url.(str_contains($url, '?') ? '&' : '?').'env[]=production&env[]=staging',
+        $projectPages,
+    ));
 
     $visited = collect($projectPages)
         ->map(fn (string $url): ?string => app('router')->getRoutes()->match(Request::create($url))->getName())

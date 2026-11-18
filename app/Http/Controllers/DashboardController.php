@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Watch\Stats\DashboardStats;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\TimeRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,9 +36,10 @@ class DashboardController extends Controller
     public function show(Project $project, Request $request, DashboardStats $stats): Response
     {
         $range = TimeRange::fromLabel($request->string('range', '1h')->toString());
+        $environments = EnvironmentFilter::fromRequest($request, $project);
 
         return Inertia::render('projects/dashboard', [
-            'stats' => $stats->forProject($project, $range),
+            'stats' => $stats->forProject($project, $range, $environments),
             'selectedRange' => $range->label,
         ]);
     }

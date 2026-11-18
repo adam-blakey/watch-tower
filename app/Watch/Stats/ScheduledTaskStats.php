@@ -16,6 +16,7 @@ class ScheduledTaskStats
     public function paginatedTasks(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -23,7 +24,7 @@ class ScheduledTaskStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->tasks($project, $range, $search),
+            items: $this->tasks($project, $range, $environments, $search),
             sortable: [
                 'task' => 'string',
                 'processed' => 'numeric',
@@ -47,9 +48,9 @@ class ScheduledTaskStats
      *   buckets: list<array{bucket:string,processed:int,skipped:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $taskHash = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $taskHash = null): array
     {
-        $base = $this->baseQuery($project, $range, $taskHash);
+        $base = $this->baseQuery($project, $range, $environments, $taskHash);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -81,16 +82,16 @@ class ScheduledTaskStats
                 'p95_ms' => $this->percentile($durations, 0.95),
                 'threshold_ms' => $stats?->threshold !== null ? (int) $stats->threshold : null,
             ],
-            'buckets' => $this->buckets($project, $range, $taskHash),
+            'buckets' => $this->buckets($project, $range, $environments, $taskHash),
         ];
     }
 
     /**
      * @return list<array{task:string,task_hash:string,schedule:string|null,next_run_at:string|null,processed:int,skipped:int,failed:int,total:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function tasks(Project $project, TimeRange $range, ?string $search = null): array
+    public function tasks(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('task', 'like', '%'.$search.'%');
@@ -109,7 +110,7 @@ class ScheduledTaskStats
             ->groupBy('task', 'task_hash')
             ->get();
 
-        $durationsByTask = $this->durationsByTask($project, $range, $search);
+        $durationsByTask = $this->durationsByTask($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByTask) {
@@ -149,9 +150,9 @@ class ScheduledTaskStats
      *   runs: list<array{id:string,memory_peak_kb:int|null,status:string,duration_ms:int|null,exit_code:int|null,lazy_loads:int|null,hydrated_models:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function taskDetail(Project $project, TimeRange $range, string $taskHash): ?array
+    public function taskDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $taskHash): ?array
     {
-        $base = $this->baseQuery($project, $range, $taskHash);
+        $base = $this->baseQuery($project, $range, $environments, $taskHash);
 
         $latest = (clone $base)->orderByDesc('occurred_at')->first();
 
@@ -159,7 +160,7 @@ class ScheduledTaskStats
             return null;
         }
 
-        $summary = $this->summary($project, $range, $taskHash);
+        $summary = $this->summary($project, $range, $environments, $taskHash);
 
         $runs = (clone $base)
             ->orderByDesc('occurred_at')
@@ -201,10 +202,11 @@ class ScheduledTaskStats
     /**
      * @return Builder<ScheduledTaskRun>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $taskHash = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $taskHash = null): Builder
     {
         $query = ScheduledTaskRun::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($taskHash !== null) {
@@ -217,13 +219,13 @@ class ScheduledTaskStats
     /**
      * @return list<array{bucket:string,processed:int,skipped:int,failed:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $taskHash = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $taskHash = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $taskHash)
+        $rows = $this->baseQuery($project, $range, $environments, $taskHash)
             ->orderBy('occurred_at')
             ->get(['status', 'duration_ms', 'occurred_at']);
 
@@ -275,9 +277,9 @@ class ScheduledTaskStats
     /**
      * @return array<string, list<int>>
      */
-    private function durationsByTask(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByTask(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('task', 'like', '%'.$search.'%');
