@@ -36,6 +36,9 @@ class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
      */
     protected function hideSensitiveRequestDetails(): void
     {
+        Telescope::hideRequestHeaders(['x-api-key']);
+        Telescope::hideResponseParameters(['token']);
+
         if ($this->app->environment('local')) {
             return;
         }

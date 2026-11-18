@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
+use Laravel\Telescope\Telescope;
 
 beforeEach(function () {
     Queue::fake();
@@ -278,4 +279,9 @@ it('does not stamp a key use for a rejected key', function () {
     presentApiKey('ingest', 'pk_test_unknown');
 
     expect($project->fresh()->api_key_last_used_at)->toBeNull();
+});
+
+it('keeps API keys and ingest tokens out of Telescope entries', function () {
+    expect(Telescope::$hiddenRequestHeaders)->toContain('authorization', 'x-api-key')
+        ->and(Telescope::$hiddenResponseParameters)->toContain('token');
 });
