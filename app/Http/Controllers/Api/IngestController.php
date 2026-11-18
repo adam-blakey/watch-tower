@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\IngestBatchRequest;
 use App\Jobs\ProcessWatchEvent;
+use App\Models\Environment;
 use App\Models\Project;
 use App\Watch\EventStore;
 use Illuminate\Http\JsonResponse;
@@ -16,11 +17,13 @@ class IngestController extends Controller
     {
         /** @var Project $project */
         $project = $request->attributes->get('watch_project');
+        /** @var Environment $environment */
+        $environment = $request->attributes->get('watch_environment');
 
         $events = $request->validated('events');
 
         foreach ($events as $event) {
-            ProcessWatchEvent::dispatch($project->id, $event);
+            ProcessWatchEvent::dispatch($project->id, $event, $environment->id);
         }
 
         return response()->json([
@@ -35,11 +38,13 @@ class IngestController extends Controller
     {
         /** @var Project $project */
         $project = $request->attributes->get('watch_project');
+        /** @var Environment $environment */
+        $environment = $request->attributes->get('watch_environment');
 
         $events = $request->validated('events');
 
         foreach ($events as $event) {
-            $store->store($project, $event);
+            $store->store($project, $event, $environment->id);
         }
 
         return response()->json([

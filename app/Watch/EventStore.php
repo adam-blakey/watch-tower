@@ -35,25 +35,29 @@ class EventStore
     /**
      * Persist a single ingested event for a project.
      *
+     * Every row but the project-wide error group gets `environment_id`. Null stands for the project's default environment, which is what rows
+     * stored before environments existed carry.
+     *
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
+     * @param  string|null  $environmentId  The environment whose key authenticated the event.
      */
-    public function store(Project $project, array $event): void
+    public function store(Project $project, array $event, ?string $environmentId = null): void
     {
         match ($event['type']) {
-            'request' => $this->storeRequest($project, $event['data']),
-            'query' => $this->storeQuery($project, $event['data']),
-            'exception' => $this->storeException($project, $event['data']),
-            'event' => $this->storeEvent($project, $event['data']),
-            'job' => $this->storeJob($project, $event['data']),
-            'job-attempt' => $this->storeJobAttempt($project, $event['data']),
-            'log' => $this->storeLog($project, $event['data']),
-            'cache-event' => $this->storeCacheEvent($project, $event['data']),
-            'command' => $this->storeCommand($project, $event['data']),
-            'scheduled-task' => $this->storeScheduledTask($project, $event['data']),
-            'mail' => $this->storeMail($project, $event['data']),
-            'notification' => $this->storeNotification($project, $event['data']),
-            'outgoing-request' => $this->storeOutgoingRequest($project, $event['data']),
-            'user' => $this->storeUser($project, $event['data']),
+            'request' => $this->storeRequest($project, $environmentId, $event['data']),
+            'query' => $this->storeQuery($project, $environmentId, $event['data']),
+            'exception' => $this->storeException($project, $environmentId, $event['data']),
+            'event' => $this->storeEvent($project, $environmentId, $event['data']),
+            'job' => $this->storeJob($project, $environmentId, $event['data']),
+            'job-attempt' => $this->storeJobAttempt($project, $environmentId, $event['data']),
+            'log' => $this->storeLog($project, $environmentId, $event['data']),
+            'cache-event' => $this->storeCacheEvent($project, $environmentId, $event['data']),
+            'command' => $this->storeCommand($project, $environmentId, $event['data']),
+            'scheduled-task' => $this->storeScheduledTask($project, $environmentId, $event['data']),
+            'mail' => $this->storeMail($project, $environmentId, $event['data']),
+            'notification' => $this->storeNotification($project, $environmentId, $event['data']),
+            'outgoing-request' => $this->storeOutgoingRequest($project, $environmentId, $event['data']),
+            'user' => $this->storeUser($project, $environmentId, $event['data']),
             default => null,
         };
     }
@@ -76,7 +80,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeRequest(Project $project, array $data): void
+    private function storeRequest(Project $project, ?string $environmentId, array $data): void
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
@@ -88,6 +92,7 @@ class EventStore
         $userDetails = $this->userDetails($project, $userIdentifier, $data);
 
         $values = [
+            'environment_id' => $environmentId,
             'method' => $this->limitedString($data['method'] ?? null, 10) ?? 'GET',
             'uri' => is_scalar($data['uri'] ?? null) ? (string) $data['uri'] : '/',
             'status_code' => $this->unsignedIntOrNull($data['status_code'] ?? null, 65_535),
@@ -159,9 +164,9 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeQuery(Project $project, array $data): void
+    private function storeQuery(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         if (! $trace) {
             Log::warning('Dropped a query record that carries no correlation id.', ['project_id' => $project->id]);
@@ -172,13 +177,14 @@ class EventStore
         $durationMs = $this->fractionalMsOrNull($data['duration_ms'] ?? null) ?? 0.0;
         $file = $this->limitedString($data['file'] ?? null, 255);
 
-        DB::connection(Databases::TELEMETRY)->transaction(function () use ($trace, $durationMs, $file, $project, $data): void {
+        DB::connection(Databases::TELEMETRY)->transaction(function () use ($trace, $durationMs, $file, $project, $environmentId, $data): void {
             if ($durationMs > 0) {
                 Trace::query()->whereKey($trace->id)->increment('db_time_ms', $durationMs);
             }
 
             TraceQuery::create([
                 'project_id' => $project->id,
+                'environment_id' => $environmentId,
                 'trace_id' => $trace->id,
                 'query_type' => $this->detectQueryType($this->stringOrNull($data['sql'] ?? null) ?? ''),
                 'sql' => $this->stringOrNull($data['sql'] ?? null) ?? '',
@@ -206,9 +212,9 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeException(Project $project, array $data): void
+    private function storeException(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         $fingerprint = $this->fingerprinter->forException($data);
         $exceptionClass = $this->limitedString($data['class'] ?? $data['exception_class'] ?? null, 255) ?? 'Exception';
@@ -226,7 +232,7 @@ class EventStore
         $sourceType = $this->limitedString($data['source_type'] ?? null, 50);
         $sourceLabel = $this->limitedString($data['source_label'] ?? null, 255);
 
-        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel) {
+        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $environmentId, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel) {
             if ($trace && ! $trace->has_errors) {
                 $trace->forceFill(['has_errors' => true])->save();
             }
@@ -265,6 +271,7 @@ class EventStore
 
             $occurrence = ErrorOccurrence::create([
                 'project_id' => $project->id,
+                'environment_id' => $environmentId,
                 'trace_id' => $trace?->id,
                 'error_group_id' => $group->id,
                 'exception_class' => $exceptionClass,
@@ -299,12 +306,13 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeEvent(Project $project, array $data): void
+    private function storeEvent(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         EventOccurrence::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'event_class' => $this->limitedString($data['class'] ?? $data['event_class'] ?? null, 255) ?? 'UnknownEvent',
             'fired_by' => $this->limitedString($data['fired_by'] ?? null, 255),
@@ -324,14 +332,15 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJob(Project $project, array $data): void
+    private function storeJob(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         $jobId = $this->limitedString($data['job_id'] ?? null, 64);
 
         $values = [
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'job_id' => $jobId,
             'job_class' => $this->limitedString($data['class'] ?? $data['job_class'] ?? null, 255) ?? 'UnknownJob',
@@ -369,12 +378,13 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeCacheEvent(Project $project, array $data): void
+    private function storeCacheEvent(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         CacheEvent::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'key' => $this->limitedString($data['key'] ?? null, 255) ?? '',
             'store' => $this->limitedString($data['store'] ?? null, 50),
@@ -398,9 +408,9 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJobAttempt(Project $project, array $data): void
+    private function storeJobAttempt(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
         $jobId = $this->limitedString($data['job_id'] ?? null, 64);
         $startedAt = $this->parseTimestamp($data['started_at'] ?? null, allowNull: true);
 
@@ -431,7 +441,7 @@ class EventStore
             'environment' => $this->limitedString($data['environment'] ?? null, 50),
         ];
 
-        $values = ['project_id' => $project->id, 'job_id' => $jobId, 'dispatched_at' => null, ...$details, ...$outcome];
+        $values = ['project_id' => $project->id, 'environment_id' => $environmentId, 'job_id' => $jobId, 'dispatched_at' => null, ...$details, ...$outcome];
 
         if ($jobId === null) {
             QueueJobRun::create($values);
@@ -505,10 +515,11 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeCommand(Project $project, array $data): void
+    private function storeCommand(Project $project, ?string $environmentId, array $data): void
     {
         CommandRun::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'command' => $this->limitedString($data['command'] ?? null, 255) ?? 'unknown',
             'memory_peak_kb' => $this->unsignedIntOrNull($data['memory_peak_kb'] ?? null),
             'arguments' => is_array($data['arguments'] ?? null) ? $this->boundedBlob($data['arguments']) : null,
@@ -533,13 +544,14 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeScheduledTask(Project $project, array $data): void
+    private function storeScheduledTask(Project $project, ?string $environmentId, array $data): void
     {
         $task = $this->limitedString($data['task'] ?? null, 255) ?? 'unknown';
         $suppliedHash = $this->stringOrNull($data['task_hash'] ?? null);
 
         ScheduledTaskRun::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'task' => $task,
             'task_hash' => $suppliedHash !== null && preg_match('/^[0-9a-f]{40}$/i', $suppliedHash) ? $suppliedHash : sha1($task),
             'lazy_loads' => $this->unsignedIntOrNull($data['lazy_loads'] ?? null),
@@ -569,12 +581,13 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeMail(Project $project, array $data): void
+    private function storeMail(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         MailSend::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'mailable_class' => $this->limitedString($data['class'] ?? $data['mailable_class'] ?? null, 255) ?? 'UnknownMailable',
             'mailer' => $this->limitedString($data['mailer'] ?? null, 50),
@@ -592,12 +605,13 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeNotification(Project $project, array $data): void
+    private function storeNotification(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         NotificationSend::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'notification_class' => $this->limitedString($data['class'] ?? $data['notification_class'] ?? null, 255) ?? 'UnknownNotification',
             'channel' => $this->limitedString($data['channel'] ?? null, 50) ?? 'unknown',
@@ -612,12 +626,13 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeOutgoingRequest(Project $project, array $data): void
+    private function storeOutgoingRequest(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         OutgoingRequest::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'method' => strtoupper($this->limitedString($data['method'] ?? null, 10) ?? 'GET'),
             'host' => $this->limitedString($data['host'] ?? null, 255) ?? '',
@@ -663,7 +678,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeUser(Project $project, array $data): void
+    private function storeUser(Project $project, ?string $environmentId, array $data): void
     {
         $identifier = $this->limitedString($data['user_id'] ?? null, 255);
         $name = $this->limitedString($data['name'] ?? null, 255);
@@ -677,7 +692,7 @@ class EventStore
 
         $user = EndUser::firstOrCreate(
             ['project_id' => $project->id, 'identifier' => $identifier],
-            ['name' => $name, 'email' => $email, 'last_seen_at' => $seenAt],
+            ['environment_id' => $environmentId, 'name' => $name, 'email' => $email, 'last_seen_at' => $seenAt],
         );
 
         if (! $user->wasRecentlyCreated) {
@@ -881,9 +896,9 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeLog(Project $project, array $data): void
+    private function storeLog(Project $project, ?string $environmentId, array $data): void
     {
-        $trace = $this->resolveTrace($project, $data);
+        $trace = $this->resolveTrace($project, $environmentId, $data);
 
         $context = $data['context'] ?? null;
         if ($context === [] || $context === '') {
@@ -892,6 +907,7 @@ class EventStore
 
         LogEntry::create([
             'project_id' => $project->id,
+            'environment_id' => $environmentId,
             'trace_id' => $trace?->id,
             'level' => $this->limitedString($data['level'] ?? null, 20) ?? 'info',
             'message' => $this->stringOrNull($data['message'] ?? null) ?? '',
@@ -914,7 +930,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function resolveTrace(Project $project, array $data): ?Trace
+    private function resolveTrace(Project $project, ?string $environmentId, array $data): ?Trace
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
@@ -925,6 +941,7 @@ class EventStore
         return Trace::firstOrCreate(
             ['project_id' => $project->id, 'correlation_id' => $correlationId],
             fn (): array => [
+                'environment_id' => $environmentId,
                 'method' => '',
                 'uri' => '',
                 'is_stub' => true,

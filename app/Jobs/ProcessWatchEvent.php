@@ -17,12 +17,22 @@ class ProcessWatchEvent implements ShouldQueue
     public int $backoff = 5;
 
     /**
+     * The environment whose key authenticated the event.
+     *
+     * Not promoted with the other arguments: jobs queued before environments existed unserialize without it, and
+     * a promoted readonly property would then be uninitialized instead of null (the default environment).
+     */
+    public ?string $environmentId = null;
+
+    /**
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
      */
     public function __construct(
         public readonly string $projectId,
         public readonly array $event,
+        ?string $environmentId = null,
     ) {
+        $this->environmentId = $environmentId;
         // $this->onQueue('watch-events');
     }
 
@@ -46,6 +56,6 @@ class ProcessWatchEvent implements ShouldQueue
             return;
         }
 
-        $store->store($project, $this->event);
+        $store->store($project, $this->event, $this->environmentId);
     }
 }
