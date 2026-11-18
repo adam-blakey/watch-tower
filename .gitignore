@@ -31,3 +31,7 @@ yarn-error.log
 /.agent/storage/debugbar
 /error_log
 /public/error_log
+
+/app.js
+/stderr.log
+/tmp/
