@@ -156,3 +156,11 @@ function seedTelemetry(Project $project, CarbonInterface $at): void
         'updated_at' => $at,
     ]);
 }
+
+/**
+ * Add back the `environments.deleting_at` column that re-running the create-environments migration drops.
+ */
+function restoreEnvironmentsDeletingAt(): void
+{
+    (require glob(database_path('migrations/*_add_deleting_at_to_environments_table.php'))[0])->up();
+}

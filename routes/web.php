@@ -17,6 +17,7 @@ use App\Http\Controllers\Project\RequestsController;
 use App\Http\Controllers\Project\ScheduledTasksController;
 use App\Http\Controllers\Project\UsersController;
 use App\Http\Controllers\Settings\AdminsController;
+use App\Http\Controllers\Settings\EnvironmentController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\ProjectAdminController;
@@ -64,7 +65,12 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
             Route::post('/projects', [ProjectAdminController::class, 'store'])->name('projects.store');
             Route::get('/projects/{project:slug}/edit', [ProjectAdminController::class, 'edit'])->name('projects.edit');
             Route::patch('/projects/{project:slug}', [ProjectAdminController::class, 'update'])->name('projects.update');
-            Route::post('/projects/{project:slug}/rotate-key', [ProjectAdminController::class, 'rotateKey'])->name('projects.rotate-key');
+            Route::scopeBindings()->prefix('/projects/{project:slug}/environments')->name('projects.environments.')->group(function () {
+                Route::post('/', [EnvironmentController::class, 'store'])->name('store');
+                Route::patch('/{environment}', [EnvironmentController::class, 'update'])->name('update');
+                Route::post('/{environment}/rotate-key', [EnvironmentController::class, 'rotateKey'])->name('rotate-key');
+                Route::delete('/{environment}', [EnvironmentController::class, 'destroy'])->name('destroy');
+            });
             Route::delete('/projects/{project:slug}', [ProjectAdminController::class, 'destroy'])->name('projects.destroy');
         });
     });

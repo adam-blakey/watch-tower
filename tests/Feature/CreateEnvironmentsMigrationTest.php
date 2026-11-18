@@ -59,6 +59,7 @@ it('moves each project key to a default production environment that keeps authen
     $tokenIssuedBefore = Crypt::encryptString(json_encode(['project_id' => $id, 'expires_at' => time() + 3600, 'key_version' => 2]));
 
     $migration->up();
+    restoreEnvironmentsDeletingAt();
 
     $environment = Project::findOrFail($id)->defaultEnvironment;
 
@@ -91,6 +92,7 @@ it('gives every project its own default environment', function () {
     $first = insertProjectWithKey('pk_before_first');
     $second = insertProjectWithKey('pk_before_second');
     $migration->up();
+    restoreEnvironmentsDeletingAt();
 
     expect(Environment::findByApiKey('pk_before_first')?->project_id)->toBe($first)
         ->and(Environment::findByApiKey('pk_before_second')?->project_id)->toBe($second)
@@ -112,6 +114,7 @@ it('puts the default environment key back on the project when rolled back', func
         ->and((int) $row->api_key_version)->toBe(2);
 
     $migration->up();
+    restoreEnvironmentsDeletingAt();
 
     $this->withHeader('Authorization', 'Bearer pk_test_default')->postJson('/api/agent-auth')->assertOk();
     $this->withHeader('Authorization', 'Bearer pk_test_staging')->postJson('/api/agent-auth')->assertUnauthorized();

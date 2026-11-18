@@ -42,6 +42,11 @@ function shownApiKey(TestResponse $response): ?array
     return $response->inertiaPage()['flash']['new_api_key'] ?? null;
 }
 
+function rotateRoute(Project $project): string
+{
+    return route('settings.projects.environments.rotate-key', [$project->slug, $project->defaultEnvironment->id]);
+}
+
 function projectsTableContains(string $needle): bool
 {
     return str_contains(json_encode([DB::table('projects')->get(), DB::table('environments')->get()]), $needle);
@@ -122,13 +127,13 @@ it('rotates a key and shows the new one once', function () {
     $project = Project::factory()->withApiKey('pk_test_old')->create();
 
     $this->actingAs($this->admin)
-        ->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
-        ->assertRedirect(route('settings.projects.index'))
-        ->assertSessionHas('success', "API key rotated for '{$project->name}'.");
+        ->post(rotateRoute($project), ['grace_hours' => 0])
+        ->assertRedirect(route('settings.projects.edit', $project->slug))
+        ->assertSessionHas('success', "API key rotated for '{$project->name}' (Production).");
 
-    $response = $this->get(route('settings.projects.index'));
+    $response = $this->get(route('settings.projects.edit', $project->slug));
     $response->assertInertia(fn (AssertableInertia $page) => $page
-        ->hasFlash('new_api_key.project', $project->name)
+        ->hasFlash('new_api_key.project', "{$project->name} (Production)")
         ->hasFlash('new_api_key.key'));
     $shown = shownApiKey($response);
 
@@ -138,7 +143,7 @@ it('rotates a key and shows the new one once', function () {
         ->and(projectsTableContains($shown['key']))->toBeFalse()
         ->and(json_encode($response->inertiaPage()['props']))->not->toContain($shown['key']);
 
-    $this->get(route('settings.projects.index'))
+    $this->get(route('settings.projects.edit', $project->slug))
         ->assertInertia(fn (AssertableInertia $page) => $page->missingFlash('new_api_key'));
 });
 
@@ -147,12 +152,12 @@ it('keeps the old key working for the chosen grace period and reports when it en
     $project = Project::factory()->withApiKey('pk_test_old')->create();
 
     $this->actingAs($this->admin)
-        ->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => $hours])
+        ->post(rotateRoute($project), ['grace_hours' => $hours])
         ->assertSessionHasNoErrors();
 
     $this->withHeader('Authorization', 'Bearer pk_test_old')->postJson('/api/agent-auth')->assertOk();
 
-    expect($this->get(route('settings.projects.index'))->inertiaProps('projects')[0]['previous_api_key_expires_at'])
+    expect($this->get(route('settings.projects.edit', $project->slug))->inertiaProps('environments')[0]['previous_api_key_expires_at'])
         ->toBe(now()->addHours($hours)->toISOString());
 
     $this->travel($hours)->hours();
@@ -160,14 +165,14 @@ it('keeps the old key working for the chosen grace period and reports when it en
 
     $this->withHeader('Authorization', 'Bearer pk_test_old')->postJson('/api/agent-auth')->assertUnauthorized();
 
-    expect($this->get(route('settings.projects.index'))->inertiaProps('projects')[0]['previous_api_key_expires_at'])->toBeNull();
+    expect($this->get(route('settings.projects.edit', $project->slug))->inertiaProps('environments')[0]['previous_api_key_expires_at'])->toBeNull();
 })->with([1, 24, 168]);
 
 it('rejects a grace period that is not one of the offered choices', function (mixed $input) {
     $project = Project::factory()->withApiKey('pk_test_old')->create();
 
     $this->actingAs($this->admin)
-        ->post(route('settings.projects.rotate-key', $project->slug), $input)
+        ->post(rotateRoute($project), $input)
         ->assertSessionHasErrors('grace_hours');
 
     expect($project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
@@ -185,12 +190,12 @@ it('lets only super admins rotate a key', function () {
     $project->admins()->attach($projectAdmin->id);
 
     $this->actingAs($projectAdmin)
-        ->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
+        ->post(rotateRoute($project), ['grace_hours' => 0])
         ->assertForbidden();
 
     auth()->logout();
 
-    $this->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
+    $this->post(rotateRoute($project), ['grace_hours' => 0])
         ->assertRedirect(route('login'));
 
     expect($project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
@@ -202,7 +207,7 @@ it('does not rotate the key of a project that is being deleted', function () {
     $project->forceFill(['deleting_at' => now()])->save();
 
     $this->actingAs($this->admin)
-        ->post(route('settings.projects.rotate-key', $project->slug), ['grace_hours' => 0])
+        ->post(rotateRoute($project), ['grace_hours' => 0])
         ->assertNotFound();
 });
 

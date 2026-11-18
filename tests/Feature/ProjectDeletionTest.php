@@ -225,7 +225,7 @@ it('removes the rows a failed final purge left behind when the job is retried', 
 
         public ?Project $project = null;
 
-        public function purge(string $projectId, ?int $maxChunks = null, ?float $deadline = null): array
+        public function purge(string $projectId, ?int $maxChunks = null, ?float $deadline = null, ?string $environmentId = null): array
         {
             if (++$this->calls === 2) {
                 seedTelemetry($this->project, now());

@@ -57,6 +57,7 @@ it('hashes keys that were stored in plain text and drops the plain-text columns'
 
     $row = DB::table('projects')->where('id', $id)->first();
     environmentsMigration()->up();
+    restoreEnvironmentsDeletingAt();
 
     expect(Schema::hasColumn('projects', 'api_key'))->toBeFalse()
         ->and(Schema::hasColumn('projects', 'api_secret_hash'))->toBeFalse()
@@ -108,6 +109,7 @@ it('restores plain-text columns with fresh keys when rolled back, since hashes c
 
     $migration->up();
     environmentsMigration()->up();
+    restoreEnvironmentsDeletingAt();
 
     $this->withHeader('Authorization', 'Bearer pk_test_before_rollback')->postJson('/api/agent-auth')->assertUnauthorized();
     $this->withHeader('Authorization', 'Bearer '.$row->api_key)->postJson('/api/agent-auth')->assertOk();

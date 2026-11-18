@@ -2,17 +2,17 @@
 
 namespace App\Http\Controllers\Settings;
 
+use App\Http\Controllers\Concerns\FlashesNewApiKey;
 use App\Http\Controllers\Controller;
 use App\Jobs\DeleteProjectData;
+use App\Models\Environment;
 use App\Models\ErrorGroup;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\User;
 use App\Watch\MaintenanceStatus;
-use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -20,6 +20,8 @@ use Inertia\Response;
 
 class ProjectAdminController extends Controller
 {
+    use FlashesNewApiKey;
+
     /**
      * How long, in hours, the replaced key may keep working after a rotation.
      * Zero revokes it at once.
@@ -30,18 +32,10 @@ class ProjectAdminController extends Controller
 
     /**
      * List the projects, with when retention last ran.
-     *
-     * A key flashed by `store()` or `rotateKey()` is handed to the page as
-     * Inertia flash data, which, unlike a prop, is kept out of the browser's
-     * history state, so Back or a session restore cannot show the key again.
      */
     public function index(Request $request, MaintenanceStatus $maintenance): Response
     {
-        $newApiKey = $this->pullNewApiKey($request);
-
-        if ($newApiKey !== null) {
-            Inertia::flash('new_api_key', $newApiKey);
-        }
+        $this->flashNewApiKeyToPage($request);
 
         $projects = Project::query()
             ->orderBy('name')
@@ -125,32 +119,27 @@ class ProjectAdminController extends Controller
 
         return redirect()->route('settings.projects.index')
             ->with('success', 'Project created.')
-            ->with('new_api_key', $this->newApiKeyFlash($project, $apiKey));
+            ->with('new_api_key', $this->newApiKeyFlash($project->name, $apiKey));
     }
 
-    /**
-     * Replace the API key of the project's default environment.
-     *
-     * The new key is flashed so the next page can show it once; only its hash
-     * is stored. The old key stops working at once or, with a grace period,
-     * when it ends.
-     */
-    public function rotateKey(Request $request, Project $project): RedirectResponse
+    public function edit(Request $request, Project $project): Response
     {
-        $validated = $request->validate([
-            'grace_hours' => ['required', 'integer', Rule::in(self::ROTATION_GRACE_HOURS)],
-        ]);
+        $this->flashNewApiKeyToPage($request);
 
-        $apiKey = $project->defaultEnvironment()->firstOrFail()->rotateApiKey($validated['grace_hours'] * 3600);
-
-        return redirect()->route('settings.projects.index')
-            ->with('success', "API key rotated for '{$project->name}'.")
-            ->with('new_api_key', $this->newApiKeyFlash($project, $apiKey));
-    }
-
-    public function edit(Project $project): Response
-    {
         return Inertia::render('settings/projects/edit', [
+            'environments' => $project->environments()->orderByDesc('is_default')->orderBy('name')->get()
+                ->map(fn (Environment $environment) => [
+                    'id' => $environment->id,
+                    'name' => $environment->name,
+                    'slug' => $environment->slug,
+                    'is_default' => $environment->is_default,
+                    'api_key_prefix' => $environment->api_key_prefix,
+                    'api_key_last_used_at' => $environment->api_key_last_used_at?->toISOString(),
+                    'previous_api_key_expires_at' => $environment->hasActivePreviousApiKey()
+                        ? $environment->previous_api_key_expires_at->toISOString()
+                        : null,
+                ])
+                ->all(),
             'project' => [
                 'id' => $project->id,
                 'name' => $project->name,
@@ -215,48 +204,6 @@ class ProjectAdminController extends Controller
         DeleteProjectData::dispatch($project->id);
 
         return redirect()->route('settings.projects.index')->with('success', "Project '{$project->name}' and all its data have been deleted.");
-    }
-
-    /**
-     * The session flash that lets the next page show a new key once.
-     *
-     * The key is encrypted so that the plain text never sits in the session
-     * store; `pullNewApiKey()` decrypts it for that one response.
-     *
-     * @return array{project: string, key: string}
-     */
-    private function newApiKeyFlash(Project $project, string $apiKey): array
-    {
-        return [
-            'project' => $project->name,
-            'key' => Crypt::encryptString($apiKey),
-        ];
-    }
-
-    /**
-     * Take the flashed key out of the session and decrypt it.
-     *
-     * Pulling it removes it from the session, so the plain text only exists
-     * for the rest of this request.
-     *
-     * @return array{project: string, key: string}|null
-     */
-    private function pullNewApiKey(Request $request): ?array
-    {
-        $flashed = $request->session()->pull('new_api_key');
-
-        if (! is_array($flashed) || ! isset($flashed['project'], $flashed['key'])) {
-            return null;
-        }
-
-        try {
-            return [
-                'project' => $flashed['project'],
-                'key' => Crypt::decryptString($flashed['key']),
-            ];
-        } catch (DecryptException) {
-            return null;
-        }
     }
 
     /**
