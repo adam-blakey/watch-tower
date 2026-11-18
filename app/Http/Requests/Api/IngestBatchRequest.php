@@ -14,6 +14,15 @@ class IngestBatchRequest extends FormRequest
         return $this->attributes->has('watch_project');
     }
 
+    protected function prepareForValidation(): void
+    {
+        $maxBytes = (int) config('watch.ingest.max_decoded_bytes');
+
+        if (strlen($this->getContent()) > $maxBytes) {
+            abort(413, "Payload too large: the body exceeds {$maxBytes} bytes");
+        }
+    }
+
     /**
      * @return array<string, ValidationRule|array<mixed>|string>
      */
