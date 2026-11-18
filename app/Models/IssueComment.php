@@ -16,9 +16,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class IssueComment extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     protected function casts(): array

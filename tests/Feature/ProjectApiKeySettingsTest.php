@@ -41,9 +41,6 @@ function shownApiKey(TestResponse $response): ?array
     return $response->inertiaPage()['flash']['new_api_key'] ?? null;
 }
 
-/**
- * Whether any column of any project row holds the given text.
- */
 function projectsTableContains(string $needle): bool
 {
     return str_contains(json_encode(DB::table('projects')->get()), $needle);

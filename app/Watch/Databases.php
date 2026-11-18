@@ -19,14 +19,8 @@ use Throwable;
  */
 final class Databases
 {
-    /**
-     * Connection name for the telemetry tables.
-     */
     public const TELEMETRY = 'telemetry';
 
-    /**
-     * Connection name for the log tables.
-     */
     public const LOGS = 'logs';
 
     /**
