@@ -175,3 +175,12 @@ it('does not let clients pick their own login throttle bucket when proxies are n
         ->assertSessionHasErrors(['email' => 'Too many login attempts. Please try again in 60 seconds.']);
     $this->assertGuest();
 });
+
+it('uses the proxy-observed client IP, not a spoofed leftmost X-Forwarded-For, behind a wildcard proxy', function () {
+    config(['app.trusted_proxies' => '*']);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '10.1.2.3'])
+        ->withHeaders(['X-Forwarded-For' => '1.2.3.4, 203.0.113.9'])
+        ->getJson($this->clientUrl)
+        ->assertJsonPath('ip', '203.0.113.9');
+});

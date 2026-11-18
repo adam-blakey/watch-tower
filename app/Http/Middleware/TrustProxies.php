@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Middleware\TrustProxies as Middleware;
+use Illuminate\Http\Request;
 
 class TrustProxies extends Middleware
 {
@@ -29,5 +30,10 @@ class TrustProxies extends Middleware
         ));
 
         return $proxies === [] ? null : array_values($proxies);
+    }
+
+    protected function setTrustedProxyIpAddressesToTheCallingIp(Request $request): void
+    {
+        $request->setTrustedProxies([(string) $request->server->get('REMOTE_ADDR')], $this->getTrustedHeaderNames());
     }
 }
