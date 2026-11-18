@@ -8,7 +8,8 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-        <script>
+        <script nonce="{{ Vite::cspNonce() }}">
+            window.__webpack_nonce__ = @json(Vite::cspNonce());
             (function () {
                 try {
                     var stored = window.localStorage.getItem('lw-theme');

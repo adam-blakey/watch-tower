@@ -244,6 +244,18 @@ while :; do
 done
 EOF
 
+# Security headers for static files, which skip Laravel.
+COPY --chmod=644 <<'EOF' /etc/frankenphp/caddyfile-server.d/watch-tower.caddyfile
+@cross-origin-assets path *.svg *.svgz *.ttf *.ttc *.otf *.eot *.woff *.woff2
+header @cross-origin-assets -Access-Control-Allow-Origin
+
+header {
+	?Cross-Origin-Resource-Policy "same-origin"
+	# Turns these browser features off: the app uses none of them.
+	?Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+}
+EOF
+
 USER www-data
 WORKDIR /var/www/html
 

@@ -45,6 +45,7 @@ const SelectContent = React.forwardRef<
             {...props}
         >
             <SelectPrimitive.Viewport
+                nonce={window.__webpack_nonce__}
                 className={cn(
                     'p-1',
                     position === 'popper' &&
