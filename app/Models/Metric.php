@@ -28,9 +28,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class Metric extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<MetricFactory> */

@@ -11,14 +11,8 @@ use Illuminate\Support\Number;
 
 return new class extends Migration
 {
-    /**
-     * Name of the SQLite full-text table.
-     */
     private const FTS_TABLE = 'log_entries_fts';
 
-    /**
-     * Name of the MySQL full-text index.
-     */
     private const FULLTEXT_INDEX = 'log_entries_message_fulltext';
 
     protected $connection = Databases::LOGS;

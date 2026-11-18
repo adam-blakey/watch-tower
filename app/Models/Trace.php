@@ -58,9 +58,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 ])]
 class Trace extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<TraceFactory> */

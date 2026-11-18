@@ -29,9 +29,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class CommandRun extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     use HasUuids;

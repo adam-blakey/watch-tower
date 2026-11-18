@@ -32,9 +32,6 @@ use Illuminate\Console\Command;
 #[Description('Delete telemetry older than each project\'s retention_days')]
 class PruneTelemetry extends Command
 {
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $chunkSize = (int) $this->option('chunk');

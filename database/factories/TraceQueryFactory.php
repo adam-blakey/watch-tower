@@ -18,7 +18,6 @@ class TraceQueryFactory extends Factory
     public function definition(): array
     {
         return [
-            //
         ];
     }
 }

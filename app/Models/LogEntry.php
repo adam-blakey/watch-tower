@@ -36,9 +36,6 @@ class LogEntry extends Model
      */
     public const SEARCH_INDEX_MINIMUM_CANDIDATES = 100000;
 
-    /**
-     * @var string
-     */
     protected $connection = Databases::LOGS;
 
     use HasUuids;

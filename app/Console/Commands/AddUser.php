@@ -22,9 +22,6 @@ use Illuminate\Validation\Rules\Password;
 #[Description('Create a new admin user')]
 class AddUser extends Command
 {
-    /**
-     * Execute the console command.
-     */
     public function handle(): int
     {
         $password = $this->secret('Password');
