@@ -14,15 +14,17 @@ class SecurityHeaders
      */
     public const PERMISSIONS_POLICY = 'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
 
+    /**
+     * The CSP and COEP are skipped for the Vite dev server and Telescope, which load code inline and from
+     * other origins. Redirect bodies are emptied: browsers only follow the Location header.
+     */
     public function handle(Request $request, Closure $next): Response
     {
-        // The Vite dev server and Telescope load scripts, styles and fonts from other origins and inline.
         $isStrict = ! Vite::isRunningHot() && ! $request->is(config('telescope.path').'*');
         $nonce = $isStrict ? Vite::useCspNonce() : null;
 
         $response = $next($request);
 
-        // Browsers only follow the Location header. The body Laravel adds repeats the URL in an HTML page.
         if ($response->isRedirection()) {
             $response->setContent('');
         }
