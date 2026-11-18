@@ -75,9 +75,6 @@ class Project extends Model
         ];
     }
 
-    /**
-     * Generate a new plain-text API key.
-     */
     public static function generateApiKey(): string
     {
         return 'pk_'.Str::random(40);

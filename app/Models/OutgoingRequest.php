@@ -26,9 +26,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class OutgoingRequest extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     use HasUuids;

@@ -34,9 +34,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class ScheduledTaskRun extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     use HasUuids;

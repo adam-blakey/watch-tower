@@ -36,9 +36,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class QueueJobRun extends Model
 {
-    /**
-     * @var string
-     */
     protected $connection = Databases::TELEMETRY;
 
     /** @use HasFactory<QueueJobRunFactory> */

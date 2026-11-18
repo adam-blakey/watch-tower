@@ -55,9 +55,6 @@ function telemetryRows(SplitUpgrade $upgrade, string $connection): array
     return collect(Databases::TELEMETRY_TABLES)->mapWithKeys(fn (string $table): array => [$table => $upgrade->rows($connection, $table)])->all();
 }
 
-/**
- * Run only the telemetry move, with the given mover.
- */
 function moveTelemetry(SplitUpgrade $upgrade, TableMover $mover): void
 {
     $mover->move($upgrade->splitMigration('telemetry')->tables(), 'sqlite', Databases::TELEMETRY);

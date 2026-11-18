@@ -22,9 +22,7 @@ class ProcessWatchEvent implements ShouldQueue
     public function __construct(
         public readonly string $projectId,
         public readonly array $event,
-    ) {
-        // $this->onQueue('watch-events');
-    }
+    ) {}
 
     /**
      * Store the event unless the project's sampling rate drops it.
