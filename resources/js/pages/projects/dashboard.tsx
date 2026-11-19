@@ -1,4 +1,4 @@
-import { router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { PartyPopper } from 'lucide-react';
 import {
     Bar,
@@ -16,6 +16,8 @@ import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { AppLayout } from '@/layouts/app-layout';
+import exceptionsRoutes from '@/routes/projects/exceptions';
+import type { SharedProps } from '@/types/inertia';
 
 type ActivityBucket = {
     bucket: string;
@@ -111,8 +113,14 @@ export default function Dashboard({ stats, selectedRange }: Props) {
                     </CardHeader>
                     <Separator />
                     <CardContent className="grid gap-6 p-5 lg:grid-cols-2">
-                        <ExceptionsPanel exceptions={stats.exceptions} />
-                        <JobsPanel jobs={stats.jobs} />
+                        <div>
+                            <PanelHeading>Exceptions</PanelHeading>
+                            <ExceptionsPanel exceptions={stats.exceptions} />
+                        </div>
+                        <div>
+                            <PanelHeading>Queue jobs</PanelHeading>
+                            <JobsPanel jobs={stats.jobs} />
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -175,7 +183,7 @@ function RequestsPanel({ activity }: { activity: DashboardStats['activity'] }) {
                                 fontSize: 10,
                                 fill: 'var(--color-muted-foreground)',
                             }}
-                            width={28}
+                            width={36}
                         />
                         <Tooltip
                             cursor={{ fill: 'var(--color-muted)' }}
@@ -210,8 +218,8 @@ function DurationPanel({ activity }: { activity: DashboardStats['activity'] }) {
     const { duration, buckets } = activity;
     const data = buckets.map((b) => ({
         time: formatTime(b.bucket),
-        avg: b.avg_duration ?? 0,
-        p95: b.p95_duration ?? 0,
+        avg: b.avg_duration,
+        p95: b.p95_duration,
     }));
 
     return (
@@ -260,13 +268,15 @@ function DurationPanel({ activity }: { activity: DashboardStats['activity'] }) {
                                 fontSize: 10,
                                 fill: 'var(--color-muted-foreground)',
                             }}
-                            width={28}
+                            width={52}
                             unit="ms"
                         />
                         <Tooltip
                             contentStyle={tooltipStyle}
                             formatter={(value) =>
-                                `${Number(value).toFixed(0)} ms`
+                                value == null
+                                    ? '—'
+                                    : `${Number(value).toFixed(0)} ms`
                             }
                         />
                         <Line
@@ -296,6 +306,8 @@ function ExceptionsPanel({
 }: {
     exceptions: DashboardStats['exceptions'];
 }) {
+    const slug = usePage<SharedProps>().props.currentProject?.slug ?? '';
+
     if (exceptions.total === 0) {
         return (
             <div className="flex h-44 flex-col items-center justify-center rounded-md border border-dashed border-border text-center">
@@ -317,13 +329,16 @@ function ExceptionsPanel({
                     {formatNumber(exceptions.total)}
                 </span>
                 <span className="text-xs text-muted-foreground">
-                    in {exceptions.window_label}
+                    {exceptions.total === 1 ? 'exception' : 'exceptions'} in{' '}
+                    {exceptions.window_label}
                 </span>
             </div>
-            <p className="mt-3 text-xs text-muted-foreground">
-                Visit the Exceptions page for grouped stack traces, status, and
-                frequency.
-            </p>
+            <Link
+                href={exceptionsRoutes.index(slug).url}
+                className="mt-3 text-xs text-primary hover:underline"
+            >
+                View grouped exceptions
+            </Link>
         </div>
     );
 }
@@ -381,7 +396,7 @@ function JobsPanel({ jobs }: { jobs: DashboardStats['jobs'] }) {
                                 fontSize: 10,
                                 fill: 'var(--color-muted-foreground)',
                             }}
-                            width={28}
+                            width={36}
                         />
                         <Tooltip
                             cursor={{ fill: 'var(--color-muted)' }}
@@ -401,6 +416,12 @@ function JobsPanel({ jobs }: { jobs: DashboardStats['jobs'] }) {
                 </ResponsiveContainer>
             </div>
         </div>
+    );
+}
+
+function PanelHeading({ children }: { children: string }) {
+    return (
+        <h3 className="mb-3 text-sm font-medium text-foreground">{children}</h3>
     );
 }
 

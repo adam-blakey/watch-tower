@@ -74,7 +74,6 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
         ->name('projects.')
         ->middleware('can:view-project,project')
         ->group(function () {
-            // GET-only: Route::redirect() uses any(), whose QUERY verb (newer Laravel) breaks Wayfinder's Method type.
             Route::get('/', RedirectController::class)->defaults('destination', '/projects/{project:slug}/dashboard')->defaults('status', 302);
             Route::get('/dashboard', [DashboardController::class, 'show'])->name('dashboard');
             Route::get('/requests', [RequestsController::class, 'index'])->name('requests.index');

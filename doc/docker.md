@@ -28,6 +28,8 @@ Nothing secret is baked into the image. Pass settings with `-e` or `--env-file`.
 | --- | --- |
 | `APP_KEY` | **Required.** Generate one with `echo "base64:$(openssl rand -base64 32)"`. Keep it stable between restarts. |
 | `APP_URL` | **Required.** The public URL, for example `https://watch.example.com`. |
+| `APP_NAME` | Optional. Name shown in the sidebar, login page and page titles. Defaults to `Watch Tower`. |
+| `APP_ICON_URL` | Optional. URL or path of a custom logo, also used as the favicon. Defaults to the bundled icon. |
 | `DB_*` | Defaults to SQLite: three files in `/var/www/html/storage/database/`. See [Databases](#databases). For MySQL 8 set `DB_CONNECTION=mysql`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME` and `DB_PASSWORD`. PostgreSQL is not supported yet ([#19](https://github.com/Andrewpk/watch-tower/issues/19)). |
 | `TRUSTED_PROXIES` | Off by default. Set it when a reverse proxy or load balancer terminates TLS in front of the container. See [Behind a reverse proxy](#behind-a-reverse-proxy). |
 | `AUTORUN_ENABLED` | Defaults to `false`. Set `true` on the web container to run migrations and cache config, routes, views and events on every start. |

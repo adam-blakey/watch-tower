@@ -29,7 +29,6 @@ class ProfileController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
-        // From the auth guard, not the request, so the ignored ID can never be user input.
         $user = Auth::user();
 
         $validated = $request->validate([

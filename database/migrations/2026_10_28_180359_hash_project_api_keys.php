@@ -42,7 +42,6 @@ return new class extends Migration
             }
         });
 
-        // The unique index goes first: SQLite refuses to drop an indexed column.
         Schema::table('projects', function (Blueprint $table): void {
             $table->dropUnique(['api_key']);
         });

@@ -159,7 +159,6 @@ class RequestStats
             ->selectRaw('AVG(response_size_bytes) AS avg_response_bytes')
             ->first();
 
-        // Averaged only over requests that carry stage data, so the proportions come from one consistent set.
         $stageQuery = clone $base;
         foreach (self::STAGE_COLUMNS as $column) {
             $stageQuery->whereNotNull($column)->selectRaw("AVG({$column}) AS {$column}");
