@@ -32,9 +32,6 @@ class EnvironmentController extends Controller
             ->with('new_api_key', $this->newApiKeyFlash("{$project->name} ({$environment->name})", $apiKey));
     }
 
-    /**
-     * Rename an environment. The slug is what agents' filters and bookmarks use, so it stays as created.
-     */
     public function update(Request $request, Project $project, Environment $environment): RedirectResponse
     {
         $environment->update($request->validate(['name' => ['required', 'string', 'max:255']]));
@@ -42,12 +39,6 @@ class EnvironmentController extends Controller
         return $this->backToProject($project)->with('success', 'Environment updated.');
     }
 
-    /**
-     * Replace the environment's API key.
-     *
-     * The new key is flashed so the next page can show it once; the old key
-     * stops working at once or, with a grace period, when it ends.
-     */
     public function rotateKey(Request $request, Project $project, Environment $environment): RedirectResponse
     {
         $validated = $request->validate([
@@ -61,12 +52,6 @@ class EnvironmentController extends Controller
             ->with('new_api_key', $this->newApiKeyFlash("{$project->name} ({$environment->name})", $apiKey));
     }
 
-    /**
-     * Delete an environment other than the default.
-     *
-     * It is hidden at once (`deleting_at`, which drops it from the default `Environment` scope and so from lists, the
-     * picker and key lookup); a queued job then deletes its telemetry and finally the row.
-     */
     public function destroy(Project $project, Environment $environment): RedirectResponse
     {
         if ($environment->is_default) {

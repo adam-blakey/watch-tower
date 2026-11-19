@@ -9,13 +9,6 @@ use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Jobs\SyncJob;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 
-/**
- * Finishes deleting an environment that `EnvironmentController::destroy` has already hidden (`deleting_at` is set).
- *
- * Deletes the telemetry and log rows stamped with the environment's id, in chunks, then the environment row. Rows
- * without an `environment_id` belong to the default environment and are never touched. Time-boxed and re-dispatched
- * like {@see DeleteProjectData}; every step is idempotent, so a retry continues where the last attempt stopped.
- */
 class DeleteEnvironmentData implements ShouldQueue
 {
     use Queueable;

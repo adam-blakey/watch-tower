@@ -41,13 +41,6 @@ class Environment extends Model
         'api_key_version' => 1,
     ];
 
-    /**
-     * Hide environments that are being deleted.
-     *
-     * `deleting_at` is set by the delete action and the queued `DeleteEnvironmentData` job removes the row once its
-     * telemetry is gone. The `notDeleting` scope keeps the environment out of lists, the picker and key lookup in
-     * between. The job opts out with `Environment::withoutGlobalScope('notDeleting')`.
-     */
     protected static function booted(): void
     {
         static::addGlobalScope('notDeleting', function (Builder $query): void {

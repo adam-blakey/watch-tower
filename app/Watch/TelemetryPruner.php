@@ -120,7 +120,6 @@ class TelemetryPruner
      *
      * @param  int|null  $maxChunks  most chunks to delete in this call, or null for no limit
      * @param  float|null  $deadline  `microtime(true)` after which no new chunk starts, or null for no limit
-     * @param  string|null  $environmentId  delete only the rows of this environment, never those without one, and leave the error groups alone
      * @return array{deleted: array<string, int>, finished: bool} rows deleted per table, and whether nothing is left
      */
     public function purge(string $projectId, ?int $maxChunks = null, ?float $deadline = null, ?string $environmentId = null): array

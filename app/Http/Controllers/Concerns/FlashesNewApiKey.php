@@ -10,11 +10,6 @@ use Inertia\Inertia;
 trait FlashesNewApiKey
 {
     /**
-     * The session flash that lets the next page show a new key once.
-     *
-     * The key is encrypted so that the plain text never sits in the session
-     * store; `pullNewApiKey()` decrypts it for that one response.
-     *
      * @return array{project: string, key: string}
      */
     private function newApiKeyFlash(string $label, string $apiKey): array
@@ -25,10 +20,6 @@ trait FlashesNewApiKey
         ];
     }
 
-    /**
-     * Hand a flashed key to the page as Inertia flash data, which, unlike a prop, is kept out of the browser's
-     * history state, so Back or a session restore cannot show the key again.
-     */
     private function flashNewApiKeyToPage(Request $request): void
     {
         $newApiKey = $this->pullNewApiKey($request);
@@ -39,11 +30,6 @@ trait FlashesNewApiKey
     }
 
     /**
-     * Take the flashed key out of the session and decrypt it.
-     *
-     * Pulling it removes it from the session, so the plain text only exists
-     * for the rest of this request.
-     *
      * @return array{project: string, key: string}|null
      */
     private function pullNewApiKey(Request $request): ?array
