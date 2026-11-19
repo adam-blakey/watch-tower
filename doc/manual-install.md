@@ -79,6 +79,8 @@ Then open `.env` and adjust at minimum:
 
 ```env
 APP_NAME="Watch Tower"
+# Optional: custom logo/favicon URL
+APP_ICON_URL=
 APP_URL=http://localhost:8000
 ```
 

@@ -13,7 +13,13 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Watch Tower'),
+
+    /*
+    | Optional URL or path of the logo/favicon. Null keeps the bundled icons.
+    */
+
+    'icon' => env('APP_ICON_URL'),
 
     /*
     |--------------------------------------------------------------------------
