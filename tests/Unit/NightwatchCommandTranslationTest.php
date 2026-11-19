@@ -155,13 +155,11 @@ it('computes the next run of an hourly task', function () {
 });
 
 it('computes the next run in the task timezone and returns it in UTC', function () {
-    // 2026-07-01 00:00Z is 20:00 on June 30 in New York (EDT, UTC-4): the next 02:00 is 06:00Z the same day.
     $beforeTwo = scheduledTaskWireRecord([
         'cron' => '0 2 * * *',
         'timezone' => 'America/New_York',
         'timestamp' => CarbonImmutable::parse('2026-07-01 00:00:00', 'UTC')->getTimestamp(),
     ]);
-    // At 10:15Z the 02:00 EDT run has already happened, so the next one is the following day.
     $afterTwo = scheduledTaskWireRecord(['cron' => '0 2 * * *', 'timezone' => 'America/New_York']);
 
     expect(translateCommandWireRecord($beforeTwo)['data']['next_run_at'])->toBe('2026-07-01T06:00:00+00:00')
@@ -175,13 +173,11 @@ it('schedules a sub-minute task one interval after the run while it stays inside
 });
 
 it('follows the cron once a sub-minute task would leave the minute', function () {
-    // everyTenSeconds()->weekdays(): the last run of Friday is 23:59:50, so the next one is Monday.
     $weekdays = scheduledTaskWireRecord([
         'cron' => '* * * * 1-5',
         'repeat_seconds' => 10,
         'timestamp' => CarbonImmutable::parse('2026-07-03 23:59:50', 'UTC')->getTimestamp(),
     ]);
-    // everyThirtySeconds()->hourly(): the second run of the hour is 10:00:30, so the next one is 11:00.
     $hourly = scheduledTaskWireRecord([
         'cron' => '0 * * * *',
         'repeat_seconds' => 30,

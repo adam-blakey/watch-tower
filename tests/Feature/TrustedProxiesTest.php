@@ -8,7 +8,6 @@ use Illuminate\Support\Facades\Route;
 beforeEach(function () {
     $this->freezeTime();
 
-    // Absolute, because the test client resolves relative URIs against the previous request's (forwarded) root.
     $this->clientUrl = 'http://localhost/__client';
 
     Route::get('/__client', fn (Request $request) => response()->json([
@@ -149,7 +148,6 @@ it('throttles logins per forwarded client IP behind a trusted proxy', function (
         ->assertSessionHasErrors(['email' => 'Too many login attempts. Please try again in 60 seconds.']);
     $this->assertGuest();
 
-    // A second client behind the same proxy has its own bucket.
     $attemptLoginAs('198.51.100.7', 'password')->assertRedirect('/');
     $this->assertAuthenticatedAs($user);
 });
