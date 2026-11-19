@@ -24,6 +24,7 @@ import {
 import { useEffect, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 
+import AppLogoMark from '@/components/app-logo-mark';
 import { MaintenanceBanner } from '@/components/maintenance-banner';
 import { MobileNav } from '@/components/mobile-nav';
 import { Badge } from '@/components/ui/badge';
@@ -55,7 +56,11 @@ import scheduledTasks from '@/routes/projects/scheduled-tasks';
 import users from '@/routes/projects/users';
 import profile from '@/routes/settings/profile';
 import type { User } from '@/types/auth';
-import type { CurrentProject, ProjectSummary } from '@/types/inertia';
+import type {
+    CurrentProject,
+    ProjectSummary,
+    SharedProps,
+} from '@/types/inertia';
 
 type ProjectShellProps = {
     project: CurrentProject;
@@ -84,7 +89,8 @@ export function ProjectShell({
     children,
 }: ProjectShellProps) {
     const groups = navigationGroups(project);
-    const path = usePage().url;
+    const { url: path, props } = usePage<SharedProps>();
+    const appName = props.name;
     const [collapsed, toggleCollapsed] = useSidebarCollapsed();
 
     return (
@@ -109,16 +115,14 @@ export function ProjectShell({
                             title="Expand sidebar"
                             className="group relative grid h-7 w-7 shrink-0 place-items-center rounded-md bg-emerald-500 text-xs font-semibold text-white transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         >
-                            <span className="group-hover:opacity-0">WT</span>
+                            <AppLogoMark className="h-7 w-7 group-hover:opacity-0" />
                             <PanelLeftOpen className="absolute h-4 w-4 opacity-0 group-hover:opacity-100" />
                         </button>
                     ) : (
                         <>
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-emerald-500 text-xs font-semibold text-white">
-                                LW
-                            </span>
+                            <AppLogoMark className="h-7 w-7" />
                             <span className="text-sm font-semibold tracking-tight">
-                                Watchtower
+                                {appName}
                             </span>
                             <Button
                                 type="button"

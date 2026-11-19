@@ -30,6 +30,7 @@ export type LastPrune = {
 
 export type SharedProps = {
     name: string;
+    icon: string | null;
     auth: { user: User | null };
     currentProject: CurrentProject | null;
     projects: ProjectSummary[];
