@@ -267,3 +267,21 @@ it('scopes the trace unique index to the project', function () {
     expect($uniqueColumns)->toContain(['project_id', 'correlation_id'])
         ->and($uniqueColumns)->not->toContain(['correlation_id']);
 });
+
+it('leaves empty dashboard duration buckets null and counts exceptions in the same window', function () {
+    $range = TimeRange::fromLabel('24h');
+
+    Trace::factory()->create([
+        'project_id' => $this->project->id,
+        'occurred_at' => $range->to->subMinutes(5),
+        'duration_ms' => 40,
+    ]);
+
+    $stats = (new DashboardStats)->forProject($this->project, $range);
+    $buckets = collect($stats['activity']['buckets']);
+
+    expect($buckets->whereNull('avg_duration')->count())->toBe(59)
+        ->and($buckets->whereNotNull('avg_duration')->count())->toBe(1)
+        ->and($stats['exceptions']['window_label'])->toBe('the last 24 hours')
+        ->and($stats['exceptions']['total'])->toBe(0);
+});
