@@ -35,11 +35,7 @@ class EventStore
     /**
      * Persist a single ingested event for a project.
      *
-     * Every row but the project-wide error group gets `environment_id`. Null stands for the project's default environment, which is what rows
-     * stored before environments existed carry.
-     *
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
-     * @param  string|null  $environmentId  The environment whose key authenticated the event.
      */
     public function store(Project $project, array $event, ?string $environmentId = null): void
     {

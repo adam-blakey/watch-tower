@@ -25,9 +25,6 @@ class EnvironmentFactory extends Factory
         ];
     }
 
-    /**
-     * The environment every project starts with.
-     */
     public function default(): static
     {
         return $this->state(fn () => [
@@ -37,10 +34,6 @@ class EnvironmentFactory extends Factory
         ]);
     }
 
-    /**
-     * Give the environment a known plain-text API key for testing. Only its
-     * hash and display prefix are stored, as for a real environment.
-     */
     public function withApiKey(string $key): static
     {
         return $this->state(fn () => Environment::apiKeyAttributes($key));

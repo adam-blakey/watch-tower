@@ -9,13 +9,6 @@ return new class extends Migration
 {
     protected $connection = Databases::LOGS;
 
-    /**
-     * Add a nullable `environment_id` to the log entries.
-     *
-     * Existing rows are not backfilled: a null `environment_id` means the project's default environment. Adding a
-     * column does not rebuild the table on SQLite, so the log search triggers stay in place. A table that already has
-     * the column is left alone: `migrate:fresh` resets only the app database and runs this again over the logs.
-     */
     public function up(): void
     {
         $schema = Schema::connection(Databases::LOGS);

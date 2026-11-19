@@ -15,11 +15,9 @@ class AuthenticateNightwatchIngest
      * Authenticate ingest requests using the short-lived token
      * issued by the /api/agent-auth endpoint.
      *
-     * A token records the environment and the version of its API key it was
-     * issued for, and stops working once that key has been rotated away (see
-     * `Environment::acceptsApiKeyVersion()`). Tokens issued before
-     * environments existed carry no environment and belong to the project's
-     * default environment.
+     * A token records the version of the API key it was issued for and stops
+     * working once that key has been rotated away (see
+     * `Environment::acceptsApiKeyVersion()`).
      *
      * @param  Closure(Request): (Response)  $next
      */

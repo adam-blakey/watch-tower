@@ -52,12 +52,6 @@ class Project extends Model
         ];
     }
 
-    /**
-     * Give a saved project its default environment with a fresh key, and return the key's plain text.
-     *
-     * The plain text exists only in the return value: the caller must show it to the user now, because only its hash
-     * is stored.
-     */
     public function createDefaultEnvironment(): string
     {
         $environment = $this->environments()->make([
@@ -96,9 +90,6 @@ class Project extends Model
     }
 
     /**
-     * The environment that keys from before environments existed moved to, and that telemetry rows without an
-     * `environment_id` belong to.
-     *
      * @return HasOne<Environment, $this>
      */
     public function defaultEnvironment(): HasOne

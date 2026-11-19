@@ -129,7 +129,7 @@ class ProjectAdminController extends Controller
     }
 
     /**
-     * Replace the API key of the project's default environment.
+     * Replace the project's API key.
      *
      * The new key is flashed so the next page can show it once; only its hash
      * is stored. The old key stops working at once or, with a grace period,

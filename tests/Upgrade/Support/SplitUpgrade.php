@@ -22,9 +22,6 @@ final class SplitUpgrade
 {
     public const FIRST_SPLIT_MIGRATION = '_move_telemetry_tables_to_telemetry_database.php';
 
-    /**
-     * The last migration that belongs to the split. `migrate()` stops after it.
-     */
     public const LAST_SPLIT_MIGRATION = '_add_full_text_index_to_log_entries.php';
 
     public string $directory;
@@ -125,9 +122,7 @@ final class SplitUpgrade
     }
 
     /**
-     * Run `migrate` up to the end of the split and return the exit code. Exceptions from a failing migration propagate.
-     *
-     * Later migrations change the moved tables, so they are left out: the tests compare what the split alone produces.
+     * Run `migrate` and return the exit code. Exceptions from a failing migration propagate.
      */
     public function migrate(): int
     {
