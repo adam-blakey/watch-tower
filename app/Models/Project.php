@@ -99,8 +99,6 @@ class Project extends Model
     }
 
     /**
-     * Number of rows per environment name, counting rows without an `environment_id` for the default environment.
-     *
      * @param  Builder<covariant Model>|HasMany<covariant Model, covariant Model>  $rows
      * @return list<array{environment:string,count:int}>
      */
