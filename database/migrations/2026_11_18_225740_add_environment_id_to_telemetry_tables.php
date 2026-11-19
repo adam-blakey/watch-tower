@@ -10,11 +10,6 @@ return new class extends Migration
     protected $connection = Databases::TELEMETRY;
 
     /**
-     * The telemetry tables that record the environment of their rows, with the time column their new index ends on.
-     *
-     * `error_groups` is left out: an issue spans every environment of its project, and its occurrences carry the
-     * environment.
-     *
      * @var array<string, string|null>
      */
     private const TABLES = [
@@ -33,13 +28,6 @@ return new class extends Migration
         'metrics' => 'period_start',
     ];
 
-    /**
-     * Add a nullable `environment_id` to every telemetry table that has a `project_id`.
-     *
-     * Existing rows are not backfilled: a null `environment_id` means the project's default environment. There is no
-     * foreign key, because environments live in the app database. Tables that already have the column are skipped:
-     * `migrate:fresh` resets only the app database and runs this again over telemetry that kept it.
-     */
     public function up(): void
     {
         $schema = Schema::connection(Databases::TELEMETRY);

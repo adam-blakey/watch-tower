@@ -10,8 +10,6 @@ use Illuminate\Support\Str;
 return new class extends Migration
 {
     /**
-     * The columns that hold a project's API key, which move to its default environment.
-     *
      * @var list<string>
      */
     private const KEY_COLUMNS = [
@@ -23,14 +21,6 @@ return new class extends Migration
         'api_key_last_used_at',
     ];
 
-    /**
-     * Give every project a default "Production" environment that takes over its API key.
-     *
-     * The key columns are copied unchanged, hash, grace period and version included, so deployed agents keep
-     * authenticating with the keys they have and the agent tokens already issued stay valid. The columns are then
-     * dropped from `projects`. They stay nullable on `environments`, as they were on `projects`, so a project that
-     * somehow has no key still migrates.
-     */
     public function up(): void
     {
         Schema::create('environments', function (Blueprint $table): void {
@@ -58,7 +48,6 @@ return new class extends Migration
             ])->all());
         });
 
-        // The indexes go first: SQLite refuses to drop an indexed column.
         Schema::table('projects', function (Blueprint $table): void {
             $table->dropUnique(['api_key_hash']);
             $table->dropIndex(['previous_api_key_hash']);
@@ -69,11 +58,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Put each project's key back on `projects`, taken from its default environment, and drop the environments.
-     *
-     * The keys of the other environments are lost: agents that use them stop authenticating.
-     */
     public function down(): void
     {
         Schema::table('projects', function (Blueprint $table): void {

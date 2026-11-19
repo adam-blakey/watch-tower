@@ -17,9 +17,6 @@ function hashApiKeysMigration(): Migration
     return require glob(database_path('migrations/*_hash_project_api_keys.php'))[0];
 }
 
-/**
- * The later migration that moved the hashed keys to environments, which has to be undone first.
- */
 function environmentsMigration(): Migration
 {
     return require glob(database_path('migrations/*_create_environments_table.php'))[0];

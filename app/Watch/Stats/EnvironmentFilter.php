@@ -7,12 +7,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
 
-/**
- * The environments of a project selected with `?env[]=slug`; none selected means all of them.
- *
- * Telemetry rows without an `environment_id` belong to the default environment, so selecting that one also matches
- * those rows.
- */
 final class EnvironmentFilter
 {
     /**
@@ -25,9 +19,6 @@ final class EnvironmentFilter
         private readonly bool $includesDefault = false,
     ) {}
 
-    /**
-     * Unknown slugs are dropped.
-     */
     public static function fromRequest(Request $request, Project $project): self
     {
         $selected = $project->environments->whereIn('slug', $request->array('env'), true);
@@ -40,8 +31,6 @@ final class EnvironmentFilter
     }
 
     /**
-     * Restrict a query on a table with an `environment_id` column; does nothing when no environment is selected.
-     *
      * @template TQuery of Builder|QueryBuilder
      *
      * @param  TQuery  $query

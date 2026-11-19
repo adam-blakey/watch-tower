@@ -16,12 +16,6 @@ class ProcessWatchEvent implements ShouldQueue
 
     public int $backoff = 5;
 
-    /**
-     * The environment whose key authenticated the event.
-     *
-     * Not promoted with the other arguments: jobs queued before environments existed unserialize without it, and
-     * a promoted readonly property would then be uninitialized instead of null (the default environment).
-     */
     public ?string $environmentId = null;
 
     /**

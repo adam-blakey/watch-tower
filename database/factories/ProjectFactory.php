@@ -27,9 +27,6 @@ class ProjectFactory extends Factory
         ];
     }
 
-    /**
-     * Give every created project its default environment, as creating one in Settings does.
-     */
     public function configure(): static
     {
         return $this->afterCreating(function (Project $project): void {
@@ -38,8 +35,8 @@ class ProjectFactory extends Factory
     }
 
     /**
-     * Give the project's default environment a known plain-text API key for
-     * testing. Only its hash and display prefix are stored, as for a real key.
+     * Give the project a known plain-text API key for testing. Only its hash
+     * and display prefix are stored, as for a real project.
      */
     public function withApiKey(string $key): static
     {

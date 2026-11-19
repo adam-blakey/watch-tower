@@ -17,8 +17,8 @@ class NightwatchAgentAuthController extends Controller
      * The response shape is the contract enforced by agent.phar's
      * IngestDetailsRepository::parseResponse.
      *
-     * The token records the environment and the version of the key the agent
-     * authenticated with, so rotating that key revokes the tokens issued under it.
+     * The token records the version of the key the agent authenticated with, so
+     * rotating the key revokes the tokens issued under it.
      */
     public function __invoke(Request $request): JsonResponse
     {

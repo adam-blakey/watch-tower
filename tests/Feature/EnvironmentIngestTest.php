@@ -14,9 +14,6 @@ beforeEach(function () {
     $this->staging = Environment::factory()->for($this->project)->withApiKey('pk_test_staging')->create(['name' => 'Staging', 'slug' => 'staging']);
 });
 
-/**
- * Exchange a key for a Nightwatch ingest token.
- */
 function environmentToken(string $key): string
 {
     return test()->withHeader('Authorization', 'Bearer '.$key)->postJson('/api/agent-auth')->assertOk()->json('token');

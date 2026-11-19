@@ -15,17 +15,12 @@ beforeEach(function () {
     $this->freezeSecond();
 });
 
-/**
- * The migration that moved the API keys from projects to environments.
- */
 function createEnvironmentsMigration(): Migration
 {
     return require glob(database_path('migrations/*_create_environments_table.php'))[0];
 }
 
 /**
- * Insert a project the way the schema before environments stored it: with its key columns on the row.
- *
  * @param  array<string, mixed>  $keyColumns
  */
 function insertProjectWithKey(string $apiKey, array $keyColumns = []): string
