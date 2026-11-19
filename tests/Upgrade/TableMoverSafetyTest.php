@@ -173,7 +173,6 @@ describe('after the target became the only copy', function () {
 
         expect(fn () => $this->upgrade->migrate())->toThrow(RuntimeException::class, 'simulated crash');
 
-        // A server without transactional DDL would have dropped only some of the tables: put the others back.
         $crash->armed = false;
         $this->upgrade->purge();
 

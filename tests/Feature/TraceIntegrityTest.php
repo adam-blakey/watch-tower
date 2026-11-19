@@ -177,7 +177,6 @@ it('never downgrades has_errors or has_slow_queries when the request record repo
 });
 
 it('does not count stub traces in request totals', function () {
-    // The range ends at "now"; without a frozen clock, records stored a tick later fall outside it.
     $this->freezeTime();
     $range = TimeRange::fromLabel('24h');
     $stubOnlyId = (string) Str::uuid();

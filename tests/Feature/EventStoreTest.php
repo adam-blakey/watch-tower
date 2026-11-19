@@ -161,7 +161,6 @@ it('stores log entries without a trace when the record carries no correlation id
 it('attaches queries to traces by correlation id and keeps queries that arrive before the request', function () {
     $correlationId = (string) Str::uuid();
 
-    // The query arrives first: it is kept against a stub trace instead of being dropped.
     $this->store->store($this->project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'SELECT 1', 'duration_ms' => 1.5],

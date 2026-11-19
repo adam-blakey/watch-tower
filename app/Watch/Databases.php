@@ -242,7 +242,6 @@ final class Databases
             try {
                 $schema->dropIfExists($name);
             } catch (Throwable) {
-                // An unreachable server already failed above with a clearer message.
             }
         }
     }

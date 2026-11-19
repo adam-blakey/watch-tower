@@ -48,7 +48,6 @@ jobs:
         } >> "$GITHUB_STEP_SUMMARY"
         rm report_md.md
 
-    # The seeded password is public, which is fine for a throwaway container on the runner.
     - name: Log in as the super admin
       run: |
         url=http://localhost:8080
@@ -56,7 +55,6 @@ jobs:
         docker exec watch-tower php artisan db:seed --class=SuperAdminSeeder --force
 
         curl -sf -c "$jar" -b "$jar" -o /dev/null "$url/login"
-        # The login form is a React page: the CSRF token is the URL-encoded XSRF-TOKEN cookie, sent back decoded in a header.
         xsrf=$(awk '$6 == "XSRF-TOKEN" { print $7 }' "$jar")
         xsrf=$(printf '%b' "${xsrf//%/\\x}")
         curl -sf -c "$jar" -b "$jar" -o /dev/null "$url/login" -H "X-XSRF-TOKEN: $xsrf" \
@@ -67,7 +65,6 @@ jobs:
         echo "::add-mask::$cookie"
         echo "ZAP_AUTH_HEADER_VALUE=$cookie" >> "$GITHUB_ENV"
 
-    # The spider only follows links, so it cannot log itself out or change data with the forms it finds.
     - name: Run ZAP baseline scan as the super admin
       uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
       env:

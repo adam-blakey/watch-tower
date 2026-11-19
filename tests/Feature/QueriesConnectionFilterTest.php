@@ -27,11 +27,9 @@ beforeEach(function () {
         ]);
     };
 
-    // The same statement on both connections, run from a different location on each.
     $seed('select * from users', 'mysql', 10.5, 'app/Users.php', 10);
     $seed('select * from users', 'mysql', 30.25, 'app/Users.php', 10);
     $seed('select * from users', 'reporting', 100.5, 'app/Reports.php', 20);
-    // A statement that only runs on the reporting connection.
     $seed('select * from orders', 'reporting', 50.25, 'app/Reports.php', 30);
 });
 

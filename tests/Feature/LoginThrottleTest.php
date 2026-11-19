@@ -69,7 +69,6 @@ it('clears the counter after a successful login', function () {
     $this->post(route('logout'));
     $this->assertGuest();
 
-    // Seven failures overall would lock the account out had the counter not been reset.
     foreach (range(1, 4) as $attempt) {
         ($this->attemptLogin)($this->user->email)
             ->assertSessionHasErrors(['email' => trans('auth.failed')]);
@@ -90,14 +89,12 @@ it('throttles per email and IP address', function () {
         ->assertSessionHasErrors(['email' => 'Too many login attempts. Please try again in 60 seconds.']);
     $this->assertGuest();
 
-    // A different email from the same IP is not locked out.
     ($this->attemptLogin)($otherUser->email, 'password')->assertRedirect('/');
     $this->assertAuthenticatedAs($otherUser);
 
     $this->post(route('logout'));
     $this->assertGuest();
 
-    // The same email from a different IP is not locked out either.
     $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9']);
 
     ($this->attemptLogin)($this->user->email, 'password')->assertRedirect('/');
@@ -125,7 +122,6 @@ it('limits the login route to ten requests per minute per IP address regardless 
         ->assertTooManyRequests()
         ->assertHeader('Retry-After');
 
-    // The account itself was never locked out by the per-email limiter, only the IP.
     expect(RateLimiter::attempts('someone11@example.com|127.0.0.1'))->toBe(0);
 
     $this->withServerVariables(['REMOTE_ADDR' => '203.0.113.9']);

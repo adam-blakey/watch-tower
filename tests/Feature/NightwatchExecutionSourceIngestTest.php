@@ -112,12 +112,10 @@ it('keeps the peak memory of the newest job attempt', function () {
 
     expect(QueueJobRun::sole()->memory_peak_kb)->toBe(20_480);
 
-    // An older attempt arriving late leaves the newest one in place.
     postNightwatchRecords([execSourceAttempt($this->at->subMinute(), ['attempt' => 1, 'peak_memory_usage' => 1_048_576])], $this->token)->assertOk();
 
     expect(QueueJobRun::sole()->memory_peak_kb)->toBe(20_480);
 
-    // A newer attempt that reports no memory does not erase it.
     postNightwatchRecords([execSourceAttempt($this->at->addMinutes(2), ['attempt' => 3])], $this->token)->assertOk();
 
     $run = QueueJobRun::sole();
