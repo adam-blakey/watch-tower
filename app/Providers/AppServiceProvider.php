@@ -95,7 +95,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Date::use(CarbonImmutable::class);
 
-        // Issue emails echo exception messages from monitored apps; stop them from adding markdown links or images.
         Markdown::withSecuredEncoding();
 
         DB::prohibitDestructiveCommands(

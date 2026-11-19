@@ -10,17 +10,10 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Str;
 
-/**
- * Emailed to everyone who can see a project when one of its issues is new or reopened by a regression.
- *
- * Exception text comes from the monitored app: Blade escapes it and Markdown::withSecuredEncoding() (AppServiceProvider)
- * stops it from adding links or images.
- */
 class IssueRaised extends Notification implements ShouldQueue
 {
     use Queueable;
 
-    /** The issue may be pruned or its project deleted before the mail goes out. */
     public bool $deleteWhenMissingModels = true;
 
     public function __construct(
@@ -31,9 +24,6 @@ class IssueRaised extends Notification implements ShouldQueue
         $this->afterCommit();
     }
 
-    /**
-     * @return list<string>
-     */
     public function via(object $notifiable): array
     {
         return ['mail'];

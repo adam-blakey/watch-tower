@@ -306,12 +306,6 @@ class EventStore
         }
     }
 
-    /**
-     * Email everyone who can see the project (super admins and the project's admins, as the `view-project` gate) once
-     * per new or reopened issue. It runs after the transaction commits, and the row lock on the group means only one
-     * concurrent job sees the transition. A mail or queue failure is reported but never fails the ingest job, whose
-     * retry would store the occurrence twice.
-     */
     private function notifyIssueRaised(Project $project, ErrorOccurrence $occurrence, bool $isRegression): void
     {
         rescue(function () use ($project, $occurrence, $isRegression): void {
@@ -806,7 +800,6 @@ class EventStore
      * keeps the flag and versions.
      *
      * @param  array{is_handled: bool, language_version: string|null, framework_version: string|null}  $latestDetails
-     * @return 'regression'|null 'regression' when the occurrence reopened the group
      */
     private function recordRecurrence(ErrorGroup $group, CarbonImmutable $occurredAt, array $latestDetails): ?string
     {
