@@ -53,7 +53,11 @@ import scheduledTasks from '@/routes/projects/scheduled-tasks';
 import users from '@/routes/projects/users';
 import profile from '@/routes/settings/profile';
 import type { User } from '@/types/auth';
-import type { CurrentProject, ProjectSummary, SharedProps } from '@/types/inertia';
+import type {
+    CurrentProject,
+    ProjectSummary,
+    SharedProps,
+} from '@/types/inertia';
 
 type ProjectShellProps = {
     project: CurrentProject;
