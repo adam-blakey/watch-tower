@@ -23,7 +23,7 @@ beforeEach(function () {
                 'message' => 'boom',
                 'occurred_at' => $occurredAt,
             ],
-        ]);
+        ], $this->project->environments()->value('id'));
     };
 });
 

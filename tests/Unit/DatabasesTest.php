@@ -273,7 +273,6 @@ describe('comparing server connections', function () {
             'database.connections.second' => baseMysqlConnection(['host' => 'unreachable.invalid', 'url' => 'mysql://app:secret@elsewhere.invalid:3306/watch']),
         ]);
 
-        // Different servers cannot be settled from the settings alone, so the probe runs and fails on the unreachable host.
         expect(fn () => Databases::sameDatabase('first', 'second'))->toThrow(RuntimeException::class, 'Cannot tell whether');
     });
 

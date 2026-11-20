@@ -11,7 +11,6 @@ use Inertia\Testing\AssertableInertia;
 beforeEach(function () {
     $this->travelTo('2026-06-15 12:00:00');
 
-    // The migration seeds a baseline row; each test sets up its own record.
     MaintenanceRun::query()->delete();
 });
 

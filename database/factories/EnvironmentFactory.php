@@ -20,18 +20,8 @@ class EnvironmentFactory extends Factory
             'project_id' => Project::factory(),
             'name' => Str::title($name),
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(5)),
-            'is_default' => false,
             ...Environment::apiKeyAttributes('pk_test_'.Str::random(40)),
         ];
-    }
-
-    public function default(): static
-    {
-        return $this->state(fn () => [
-            'name' => Environment::DEFAULT_NAME,
-            'slug' => Environment::DEFAULT_SLUG,
-            'is_default' => true,
-        ]);
     }
 
     public function withApiKey(string $key): static

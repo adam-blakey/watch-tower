@@ -34,8 +34,8 @@ it('prints the key of a new demo project, because only its hash is stored', func
 
     expect($matches)->toHaveCount(2)
         ->and(Environment::findByApiKey($matches[1])?->project_id)->toBe($project->id)
-        ->and($project->defaultEnvironment->api_key_prefix)->toBe(substr($matches[1], 0, 10))
-        ->and(json_encode($project->defaultEnvironment->getAttributes()))->not->toContain($matches[1]);
+        ->and($project->environments()->sole()->api_key_prefix)->toBe(substr($matches[1], 0, 10))
+        ->and(json_encode($project->environments()->sole()->getAttributes()))->not->toContain($matches[1]);
 });
 
 it('leaves the key of an existing demo project alone', function () {

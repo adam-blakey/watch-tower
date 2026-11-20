@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Settings;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\DeleteProjectData;
+use App\Models\Environment;
 use App\Models\ErrorGroup;
 use App\Models\Organization;
 use App\Models\Project;
@@ -46,7 +47,7 @@ class ProjectAdminController extends Controller
         $projects = Project::query()
             ->orderBy('name')
             ->withCount('admins')
-            ->with('defaultEnvironment')
+            ->with(['environments' => fn ($query) => $query->orderBy('name')])
             ->get(['id', 'name', 'slug', 'description', 'sampling_rate', 'retention_days', 'created_at']);
 
         /*
@@ -65,11 +66,15 @@ class ProjectAdminController extends Controller
                 'name' => $project->name,
                 'slug' => $project->slug,
                 'description' => $project->description,
-                'api_key_prefix' => $project->defaultEnvironment?->api_key_prefix,
-                'api_key_last_used_at' => $project->defaultEnvironment?->api_key_last_used_at?->toISOString(),
-                'previous_api_key_expires_at' => $project->defaultEnvironment?->hasActivePreviousApiKey()
-                    ? $project->defaultEnvironment->previous_api_key_expires_at->toISOString()
-                    : null,
+                'environments' => $project->environments->map(fn (Environment $environment) => [
+                    'id' => $environment->id,
+                    'name' => $environment->name,
+                    'api_key_prefix' => $environment->api_key_prefix,
+                    'api_key_last_used_at' => $environment->api_key_last_used_at?->toISOString(),
+                    'previous_api_key_expires_at' => $environment->hasActivePreviousApiKey()
+                        ? $environment->previous_api_key_expires_at->toISOString()
+                        : null,
+                ])->all(),
                 'sampling_rate' => $project->sampling_rate,
                 'retention_days' => $project->retention_days,
                 'admins_count' => $project->admins_count,
@@ -118,7 +123,7 @@ class ProjectAdminController extends Controller
         $apiKey = $project->getConnection()->transaction(function () use ($project): string {
             $project->save();
 
-            return $project->createDefaultEnvironment();
+            return $project->createEnvironment();
         });
 
         $project->admins()->sync($validated['admin_ids'] ?? []);
@@ -128,23 +133,16 @@ class ProjectAdminController extends Controller
             ->with('new_api_key', $this->newApiKeyFlash($project, $apiKey));
     }
 
-    /**
-     * Replace the project's API key.
-     *
-     * The new key is flashed so the next page can show it once; only its hash
-     * is stored. The old key stops working at once or, with a grace period,
-     * when it ends.
-     */
-    public function rotateKey(Request $request, Project $project): RedirectResponse
+    public function rotateKey(Request $request, Project $project, Environment $environment): RedirectResponse
     {
         $validated = $request->validate([
             'grace_hours' => ['required', 'integer', Rule::in(self::ROTATION_GRACE_HOURS)],
         ]);
 
-        $apiKey = $project->defaultEnvironment()->firstOrFail()->rotateApiKey($validated['grace_hours'] * 3600);
+        $apiKey = $environment->rotateApiKey($validated['grace_hours'] * 3600);
 
         return redirect()->route('settings.projects.index')
-            ->with('success', "API key rotated for '{$project->name}'.")
+            ->with('success', "API key rotated for '{$project->name}' ({$environment->name}).")
             ->with('new_api_key', $this->newApiKeyFlash($project, $apiKey));
     }
 

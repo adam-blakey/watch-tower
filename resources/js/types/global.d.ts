@@ -14,3 +14,7 @@ declare module '@inertiajs/core' {
         };
     }
 }
+
+declare global {
+    var __webpack_nonce__: string | undefined;
+}

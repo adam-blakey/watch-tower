@@ -24,7 +24,7 @@ function storeDbTimeQuery(Project $project, string $correlationId, float $durati
     ($store ?? new EventStore(new Fingerprinter))->store($project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'select 1', 'duration_ms' => $durationMs],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 function storeDbTimeRequest(Project $project, string $correlationId, array $extra = []): void
@@ -32,7 +32,7 @@ function storeDbTimeRequest(Project $project, string $correlationId, array $extr
     (new EventStore(new Fingerprinter))->store($project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/example', 'status_code' => 200, 'db_queries_count' => 2, ...$extra],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 it('sums query durations into the trace whichever record arrives first', function (bool $queriesFirst) {
@@ -144,8 +144,6 @@ it('stores fractional query durations and the trace sum from a Nightwatch batch'
 });
 
 it('keeps storing queries for a trace whose sum is near the old column limit', function () {
-    // SQLite does not enforce the decimal precision, so this only proves the code path; the widened
-    // decimal(15,3) column is what keeps MySQL strict from rejecting the increment.
     storeDbTimeQuery($this->project, $this->correlationId, 1.0);
     Trace::sole()->update(['db_time_ms' => 999_999_998.5]);
 

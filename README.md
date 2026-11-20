@@ -9,6 +9,7 @@ A self-hosted observability and monitoring dashboard for Laravel applications, b
 Watch Tower ingests events from one or more client Laravel applications and groups, fingerprints, and visualizes them. The dashboard surfaces:
 
 - **Error tracking** — grouped error occurrences, fingerprinting, comments, and resolution workflows
+- **Issue emails** — super admins and the project's admins get an email when a new issue is raised or a resolved one comes back (needs `MAIL_*` set up and a running queue worker)
 - **Performance traces** — request traces with database query breakdowns
 - **Outgoing HTTP requests** — every external request your app makes
 - **Queue jobs** — successful, failed, and retried job runs

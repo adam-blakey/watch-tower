@@ -28,7 +28,6 @@ return new class extends Migration
             $table->foreignUuid('project_id')->constrained('projects')->cascadeOnDelete();
             $table->string('name');
             $table->string('slug', 64);
-            $table->boolean('is_default')->default(false);
             $this->addKeyColumns($table);
             $table->timestamps();
 
@@ -41,7 +40,6 @@ return new class extends Migration
                 'project_id' => $project->id,
                 'name' => 'Production',
                 'slug' => 'production',
-                'is_default' => true,
                 ...Arr::only((array) $project, self::KEY_COLUMNS),
                 'created_at' => now(),
                 'updated_at' => now(),
@@ -64,11 +62,9 @@ return new class extends Migration
             $this->addKeyColumns($table);
         });
 
-        DB::table('environments')->where('is_default', true)->select(['id', 'project_id', ...self::KEY_COLUMNS])->orderBy('id')->chunkById(100, function ($environments): void {
-            foreach ($environments as $environment) {
-                DB::table('projects')->where('id', $environment->project_id)->update(Arr::only((array) $environment, self::KEY_COLUMNS));
-            }
-        });
+        DB::table('environments')->orderBy('id')->get(['project_id', ...self::KEY_COLUMNS])->unique('project_id')->each(
+            fn (object $environment) => DB::table('projects')->where('id', $environment->project_id)->update(Arr::only((array) $environment, self::KEY_COLUMNS)),
+        );
 
         Schema::drop('environments');
     }

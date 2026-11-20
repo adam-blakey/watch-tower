@@ -130,7 +130,7 @@ class ExceptionStats
             ->where('error_occurrences.project_id', $project->id)
             ->where('error_occurrences.error_group_id', $group->id);
 
-        $environmentCounts = $project->environmentCounts(clone $base);
+        $environmentCounts = ErrorOccurrence::countsByEnvironment(clone $base);
 
         $environments->apply($base, 'error_occurrences.environment_id');
 

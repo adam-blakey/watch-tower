@@ -23,7 +23,7 @@ it('redacts credential headers from ingested requests', function () {
             'request_id' => 'abc-123', 'method' => 'GET', 'uri' => '/x', 'status_code' => 200, 'duration_ms' => 1,
             'headers' => ['Authorization' => 'Bearer secret', 'cookie' => 'a=b', 'accept' => 'text/html'],
         ],
-    ]);
+    ], $project->environments()->value('id'));
 
     expect(Trace::where('correlation_id', 'abc-123')->first()->headers)
         ->toBe(['Authorization' => '[redacted]', 'cookie' => '[redacted]', 'accept' => 'text/html']);

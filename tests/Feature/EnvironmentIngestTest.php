@@ -52,7 +52,7 @@ it('stores events sent through a Nightwatch token under the environment of the k
     nightwatchRequestFrom(environmentToken('pk_test_production'), 'trace-production')->assertOk();
 
     expect(Trace::where('correlation_id', 'trace-staging')->value('environment_id'))->toBe($this->staging->id)
-        ->and(Trace::where('correlation_id', 'trace-production')->value('environment_id'))->toBe($this->project->defaultEnvironment->id)
+        ->and(Trace::where('correlation_id', 'trace-production')->value('environment_id'))->toBe($this->project->environments()->firstWhere('slug', 'production')->id)
         ->and(Trace::pluck('project_id')->unique()->all())->toBe([$this->project->id]);
 });
 
@@ -63,27 +63,31 @@ it('records the environment in the agent token', function () {
         ->and($payload['project_id'])->toBe($this->project->id);
 });
 
-it('treats a token without an environment as one for the default environment', function () {
+it('treats a token without an environment as one for the project\'s only environment', function () {
+    $this->staging->delete();
     $legacyToken = ingestToken($this->project->id);
 
     nightwatchRequestFrom($legacyToken, 'trace-legacy')->assertOk();
 
-    expect(Trace::sole()->environment_id)->toBe($this->project->defaultEnvironment->id);
+    expect(Trace::sole()->environment_id)->toBe($this->project->environments()->sole()->id);
 
-    $this->staging->rotateApiKey();
-    nightwatchRequestFrom($legacyToken, 'trace-after-staging-rotation')->assertOk();
-
-    $this->project->defaultEnvironment->rotateApiKey();
-    nightwatchRequestFrom($legacyToken, 'trace-after-default-rotation')
+    $this->project->environments()->sole()->rotateApiKey();
+    nightwatchRequestFrom($legacyToken, 'trace-after-rotation')
         ->assertStatus(401)
         ->assertJson(['message' => 'Revoked ingest token']);
+});
+
+it('rejects a token without an environment once the project has several', function () {
+    nightwatchRequestFrom(ingestToken($this->project->id), 'trace-legacy')
+        ->assertStatus(401)
+        ->assertJson(['message' => 'Unknown environment']);
 });
 
 it('rejects a token for an environment of another project', function () {
     $other = Project::factory()->create();
     $token = Crypt::encryptString(json_encode([
         'project_id' => $this->project->id,
-        'environment_id' => $other->defaultEnvironment->id,
+        'environment_id' => $other->environments()->firstWhere('slug', 'production')->id,
         'expires_at' => time() + 3600,
         'key_version' => 1,
     ]));
@@ -106,12 +110,12 @@ it('rotates the key of one environment without revoking the keys and tokens of a
     $this->withHeader('Authorization', 'Bearer pk_test_production')->postJson('/api/agent-auth')->assertOk();
     nightwatchRequestFrom($productionToken, 'trace-2')->assertOk();
 
-    expect($this->project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
+    expect($this->project->environments()->firstWhere('slug', 'production')->fresh()->api_key_version)->toBe(1)
         ->and($this->staging->fresh()->api_key_version)->toBe(2);
 });
 
 it('gives the default environment a grace period of its own', function () {
-    $newProductionKey = $this->project->defaultEnvironment->rotateApiKey(gracePeriodSeconds: 3600);
+    $newProductionKey = $this->project->environments()->firstWhere('slug', 'production')->rotateApiKey(gracePeriodSeconds: 3600);
 
     $this->withHeader('Authorization', 'Bearer pk_test_production')->postJson('/api/agent-auth')->assertOk();
     $this->withHeader('Authorization', 'Bearer '.$newProductionKey)->postJson('/api/agent-auth')->assertOk();

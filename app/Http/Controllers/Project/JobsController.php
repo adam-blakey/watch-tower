@@ -52,7 +52,6 @@ class JobsController extends Controller
 
     private function decodeJobClass(string $segment): string
     {
-        // URL slugs use "--" to represent "\\" so the route can avoid encoded backslashes.
         return str_replace('--', '\\', $segment);
     }
 

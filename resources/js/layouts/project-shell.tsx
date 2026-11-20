@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     AlertTriangle,
@@ -9,6 +9,7 @@ import {
     FileText,
     HardDrive,
     LayoutDashboard,
+    LogOut,
     Mail,
     Moon,
     Network,
@@ -23,7 +24,9 @@ import {
 import { useEffect, useState } from 'react';
 import type { ComponentType, ReactNode } from 'react';
 
+import AppLogoMark from '@/components/app-logo-mark';
 import { MaintenanceBanner } from '@/components/maintenance-banner';
+import { MobileNav } from '@/components/mobile-nav';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -36,6 +39,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from '@/hooks/use-theme';
 import { cn } from '@/lib/utils';
+import { logout } from '@/routes';
 import { dashboard } from '@/routes/projects';
 import cache from '@/routes/projects/cache';
 import commands from '@/routes/projects/commands';
@@ -52,7 +56,11 @@ import scheduledTasks from '@/routes/projects/scheduled-tasks';
 import users from '@/routes/projects/users';
 import profile from '@/routes/settings/profile';
 import type { User } from '@/types/auth';
-import type { CurrentProject, ProjectSummary } from '@/types/inertia';
+import type {
+    CurrentProject,
+    ProjectSummary,
+    SharedProps,
+} from '@/types/inertia';
 
 type ProjectShellProps = {
     project: CurrentProject;
@@ -81,7 +89,8 @@ export function ProjectShell({
     children,
 }: ProjectShellProps) {
     const groups = navigationGroups(project);
-    const path = usePage().url;
+    const { url: path, props } = usePage<SharedProps>();
+    const appName = props.name;
     const [collapsed, toggleCollapsed] = useSidebarCollapsed();
 
     return (
@@ -106,16 +115,14 @@ export function ProjectShell({
                             title="Expand sidebar"
                             className="group relative grid h-7 w-7 shrink-0 place-items-center rounded-md bg-emerald-500 text-xs font-semibold text-white transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                         >
-                            <span className="group-hover:opacity-0">WT</span>
+                            <AppLogoMark className="h-7 w-7 group-hover:opacity-0" />
                             <PanelLeftOpen className="absolute h-4 w-4 opacity-0 group-hover:opacity-100" />
                         </button>
                     ) : (
                         <>
-                            <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-emerald-500 text-xs font-semibold text-white">
-                                LW
-                            </span>
+                            <AppLogoMark className="h-7 w-7" />
                             <span className="text-sm font-semibold tracking-tight">
-                                Watchtower
+                                {appName}
                             </span>
                             <Button
                                 type="button"
@@ -132,92 +139,128 @@ export function ProjectShell({
                 </div>
                 <Separator />
 
-                {!collapsed && (
-                    <>
-                        <ProjectSwitcher
-                            current={project}
-                            projects={projects}
-                        />
-                        <Separator />
-                    </>
-                )}
-
-                <nav
-                    className={cn(
-                        'flex-1 overflow-y-auto py-4 text-sm',
-                        collapsed ? 'space-y-2 px-2' : 'space-y-5 px-3',
-                    )}
-                >
-                    {groups.map((group, idx) => (
-                        <div key={group.label ?? `group-${idx}`}>
-                            {group.label && !collapsed && (
-                                <div className="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                                    {group.label}
-                                </div>
-                            )}
-                            <ul className="space-y-0.5">
-                                {group.items.map((item) => {
-                                    const active = item.matches(path);
-                                    const Icon = item.icon;
-
-                                    return (
-                                        <li key={item.label}>
-                                            <Link
-                                                href={item.href}
-                                                title={
-                                                    collapsed
-                                                        ? item.label
-                                                        : undefined
-                                                }
-                                                className={cn(
-                                                    'flex items-center rounded-md text-[13px] transition-colors',
-                                                    collapsed
-                                                        ? 'h-9 w-9 justify-center'
-                                                        : 'gap-2 px-2 py-1.5',
-                                                    active
-                                                        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4 shrink-0" />
-                                                {!collapsed && (
-                                                    <>
-                                                        <span className="flex-1">
-                                                            {item.label}
-                                                        </span>
-                                                        {typeof item.badge ===
-                                                            'number' &&
-                                                            item.badge > 0 && (
-                                                                <Badge
-                                                                    variant="muted"
-                                                                    className="px-1.5 text-[10px] font-medium"
-                                                                >
-                                                                    {item.badge >
-                                                                    999
-                                                                        ? '999+'
-                                                                        : item.badge}
-                                                                </Badge>
-                                                            )}
-                                                    </>
-                                                )}
-                                            </Link>
-                                        </li>
-                                    );
-                                })}
-                            </ul>
-                        </div>
-                    ))}
-                </nav>
-
-                <Separator />
-                <UserFooter user={user} collapsed={collapsed} />
+                <SidebarBody
+                    project={project}
+                    projects={projects}
+                    user={user}
+                    groups={groups}
+                    path={path}
+                    collapsed={collapsed}
+                />
             </aside>
 
             <main className="flex min-w-0 flex-1 flex-col bg-muted/30">
+                <MobileNav title={project.name}>
+                    <SidebarBody
+                        project={project}
+                        projects={projects}
+                        user={user}
+                        groups={groups}
+                        path={path}
+                        collapsed={false}
+                    />
+                </MobileNav>
                 <MaintenanceBanner />
                 {children}
             </main>
         </div>
+    );
+}
+
+function SidebarBody({
+    project,
+    projects,
+    user,
+    groups,
+    path,
+    collapsed,
+}: {
+    project: CurrentProject;
+    projects: ProjectSummary[];
+    user: User | null;
+    groups: NavGroup[];
+    path: string;
+    collapsed: boolean;
+}) {
+    return (
+        <>
+            {!collapsed && (
+                <>
+                    <ProjectSwitcher current={project} projects={projects} />
+                    <Separator />
+                </>
+            )}
+
+            <nav
+                className={cn(
+                    'flex-1 overflow-y-auto py-4 text-sm',
+                    collapsed ? 'space-y-2 px-2' : 'space-y-5 px-3',
+                )}
+            >
+                {groups.map((group, idx) => (
+                    <div key={group.label ?? `group-${idx}`}>
+                        {group.label && !collapsed && (
+                            <div className="px-2 pb-1 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+                                {group.label}
+                            </div>
+                        )}
+                        <ul className="space-y-0.5">
+                            {group.items.map((item) => {
+                                const active = item.matches(path);
+                                const Icon = item.icon;
+
+                                return (
+                                    <li key={item.label}>
+                                        <Link
+                                            href={item.href}
+                                            title={
+                                                collapsed
+                                                    ? item.label
+                                                    : undefined
+                                            }
+                                            className={cn(
+                                                'flex items-center rounded-md text-[13px] transition-colors',
+                                                collapsed
+                                                    ? 'h-9 w-9 justify-center'
+                                                    : 'gap-2 px-2 py-1.5',
+                                                active
+                                                    ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                                            )}
+                                        >
+                                            <Icon className="h-4 w-4 shrink-0" />
+                                            {!collapsed && (
+                                                <>
+                                                    <span className="flex-1">
+                                                        {item.label}
+                                                    </span>
+                                                    {typeof item.badge ===
+                                                        'number' &&
+                                                        item.badge > 0 && (
+                                                            <Badge
+                                                                variant="muted"
+                                                                className="px-1.5 text-[10px] font-medium"
+                                                            >
+                                                                {item.badge >
+                                                                999
+                                                                    ? '999+'
+                                                                    : item.badge}
+                                                            </Badge>
+                                                        )}
+                                                </>
+                                            )}
+                                        </Link>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                ))}
+            </nav>
+
+            <Separator />
+            <UserFooter user={user} collapsed={collapsed} />
+        </>
     );
 }
 
@@ -285,6 +328,7 @@ function UserFooter({
     collapsed: boolean;
 }) {
     const { theme, toggle } = useTheme();
+    const onLogout = () => router.post(logout.url());
 
     if (collapsed) {
         return (
@@ -318,6 +362,17 @@ function UserFooter({
                     ) : (
                         <Moon className="h-4 w-4" />
                     )}
+                </Button>
+                <Button
+                    type="button"
+                    onClick={onLogout}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label="Log out"
+                    title="Log out"
+                >
+                    <LogOut className="h-4 w-4" />
                 </Button>
                 <Link
                     href={profile.show().url}
@@ -375,6 +430,17 @@ function UserFooter({
                 ) : (
                     <Moon className="h-4 w-4" />
                 )}
+            </Button>
+            <Button
+                type="button"
+                onClick={onLogout}
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                aria-label="Log out"
+                title="Log out"
+            >
+                <LogOut className="h-4 w-4" />
             </Button>
         </div>
     );

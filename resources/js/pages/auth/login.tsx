@@ -1,23 +1,25 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 
 import LoginController from '@/actions/App/Http/Controllers/Auth/LoginController';
+import AppLogoMark from '@/components/app-logo-mark';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import type { SharedProps } from '@/types/inertia';
 
 export default function Login() {
+    const { name } = usePage<SharedProps>().props;
+
     return (
         <>
             <Head title="Sign in" />
             <div className="flex min-h-screen flex-col bg-muted/40">
                 <div className="flex flex-1 flex-col items-center justify-center px-4 py-12">
                     <div className="mb-8 flex items-center gap-2">
-                        <span className="grid h-8 w-8 place-items-center rounded-md bg-emerald-500 text-sm font-semibold text-white">
-                            LW
-                        </span>
+                        <AppLogoMark className="h-8 w-8" />
                         <span className="text-base font-semibold tracking-tight">
-                            LaravelWatch
+                            {name}
                         </span>
                     </div>
 

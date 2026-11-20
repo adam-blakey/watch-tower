@@ -40,7 +40,6 @@ class QueryStats
             perPage: $perPage,
         );
 
-        // Locations are looked up for the statements on this page only, which bounds the cost by the page size.
         return $paginator->setCollection(
             collect($this->withLocations($project, $range, $environments, $search, array_values($paginator->items()), $connection)),
         );

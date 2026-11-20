@@ -17,9 +17,12 @@ use App\Models\QueueJobRun;
 use App\Models\ScheduledTaskRun;
 use App\Models\Trace;
 use App\Models\TraceQuery;
+use App\Models\User;
+use App\Notifications\IssueRaised;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class EventStore
 {
@@ -37,7 +40,7 @@ class EventStore
      *
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
      */
-    public function store(Project $project, array $event, ?string $environmentId = null): void
+    public function store(Project $project, array $event, string $environmentId): void
     {
         match ($event['type']) {
             'request' => $this->storeRequest($project, $environmentId, $event['data']),
@@ -76,7 +79,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeRequest(Project $project, ?string $environmentId, array $data): void
+    private function storeRequest(Project $project, string $environmentId, array $data): void
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
@@ -160,7 +163,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeQuery(Project $project, ?string $environmentId, array $data): void
+    private function storeQuery(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -208,7 +211,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeException(Project $project, ?string $environmentId, array $data): void
+    private function storeException(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -227,8 +230,9 @@ class EventStore
         $release = $this->limitedString($data['release'] ?? null, 255);
         $sourceType = $this->limitedString($data['source_type'] ?? null, 50);
         $sourceLabel = $this->limitedString($data['source_label'] ?? null, 255);
+        $raised = null;
 
-        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $environmentId, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel) {
+        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $environmentId, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel, &$raised) {
             if ($trace && ! $trace->has_errors) {
                 $trace->forceFill(['has_errors' => true])->save();
             }
@@ -239,7 +243,7 @@ class EventStore
                 ->first();
 
             if ($group) {
-                $this->recordRecurrence($group, $occurredAt, [
+                $raised = $this->recordRecurrence($group, $occurredAt, [
                     'is_handled' => $isHandled,
                     'language_version' => $languageVersion,
                     'framework_version' => $frameworkVersion,
@@ -263,6 +267,8 @@ class EventStore
                     'last_occurrence_at' => $occurredAt,
                     'status' => 'unresolved',
                 ]);
+
+                $raised = 'new';
             }
 
             $occurrence = ErrorOccurrence::create([
@@ -294,15 +300,31 @@ class EventStore
             return $occurrence;
         });
 
+        if ($raised !== null) {
+            $this->notifyIssueRaised($project, $occurrence, $raised === 'regression');
+        }
+
         if ($userIdentifier !== null && $userDetails === []) {
             $this->completeUserDetails(ErrorOccurrence::class, $project, $occurrence->id, $userIdentifier);
         }
     }
 
+    private function notifyIssueRaised(Project $project, ErrorOccurrence $occurrence, bool $isRegression): void
+    {
+        rescue(function () use ($project, $occurrence, $isRegression): void {
+            $recipients = User::query()
+                ->where('role', User::ROLE_SUPER_ADMIN)
+                ->orWhereHas('projects', fn ($query) => $query->whereKey($project->getKey()))
+                ->get();
+
+            Notification::send($recipients, new IssueRaised($occurrence->errorGroup, $occurrence, $isRegression));
+        });
+    }
+
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeEvent(Project $project, ?string $environmentId, array $data): void
+    private function storeEvent(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -328,7 +350,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJob(Project $project, ?string $environmentId, array $data): void
+    private function storeJob(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -374,7 +396,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeCacheEvent(Project $project, ?string $environmentId, array $data): void
+    private function storeCacheEvent(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -404,7 +426,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJobAttempt(Project $project, ?string $environmentId, array $data): void
+    private function storeJobAttempt(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
         $jobId = $this->limitedString($data['job_id'] ?? null, 64);
@@ -511,7 +533,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeCommand(Project $project, ?string $environmentId, array $data): void
+    private function storeCommand(Project $project, string $environmentId, array $data): void
     {
         CommandRun::create([
             'project_id' => $project->id,
@@ -540,7 +562,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeScheduledTask(Project $project, ?string $environmentId, array $data): void
+    private function storeScheduledTask(Project $project, string $environmentId, array $data): void
     {
         $task = $this->limitedString($data['task'] ?? null, 255) ?? 'unknown';
         $suppliedHash = $this->stringOrNull($data['task_hash'] ?? null);
@@ -577,7 +599,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeMail(Project $project, ?string $environmentId, array $data): void
+    private function storeMail(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -601,7 +623,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeNotification(Project $project, ?string $environmentId, array $data): void
+    private function storeNotification(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -622,7 +644,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeOutgoingRequest(Project $project, ?string $environmentId, array $data): void
+    private function storeOutgoingRequest(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -674,7 +696,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeUser(Project $project, ?string $environmentId, array $data): void
+    private function storeUser(Project $project, string $environmentId, array $data): void
     {
         $identifier = $this->limitedString($data['user_id'] ?? null, 255);
         $name = $this->limitedString($data['name'] ?? null, 255);
@@ -790,7 +812,7 @@ class EventStore
      *
      * @param  array{is_handled: bool, language_version: string|null, framework_version: string|null}  $latestDetails
      */
-    private function recordRecurrence(ErrorGroup $group, CarbonImmutable $occurredAt, array $latestDetails): void
+    private function recordRecurrence(ErrorGroup $group, CarbonImmutable $occurredAt, array $latestDetails): ?string
     {
         $attributes = [];
 
@@ -834,7 +856,11 @@ class EventStore
                 'body' => 'Reopened automatically: the error occurred again after it was resolved.',
                 'meta' => $regression,
             ]);
+
+            return 'regression';
         }
+
+        return null;
     }
 
     /**
@@ -892,7 +918,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeLog(Project $project, ?string $environmentId, array $data): void
+    private function storeLog(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -926,7 +952,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function resolveTrace(Project $project, ?string $environmentId, array $data): ?Trace
+    private function resolveTrace(Project $project, string $environmentId, array $data): ?Trace
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 

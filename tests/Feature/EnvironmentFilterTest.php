@@ -16,7 +16,7 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create(['role' => User::ROLE_SUPER_ADMIN]));
 
     $this->project = Project::factory()->create();
-    $this->production = $this->project->defaultEnvironment()->firstOrFail();
+    $this->production = $this->project->environments()->sole();
     $this->staging = Environment::factory()->for($this->project)->create(['name' => 'Staging', 'slug' => 'staging']);
 });
 
@@ -37,21 +37,8 @@ it('selects environments by slug, drops unknown slugs and selects nothing withou
         ->and(EnvironmentFilter::fromRequest(Request::create('/', 'GET', ['env' => 'staging']), $project)->slugs)->toBe(['staging']);
 });
 
-it('matches rows without an environment only when the default environment is selected', function () {
-    Trace::factory()->create(['project_id' => $this->project->id]);
-    Trace::factory()->create(['project_id' => $this->project->id, 'environment_id' => $this->production->id]);
-    Trace::factory()->create(['project_id' => $this->project->id, 'environment_id' => $this->staging->id]);
-
-    $count = fn (array $slugs): int => environmentFilterFor($this->project, $slugs)->apply(Trace::query())->count();
-
-    expect($count([]))->toBe(3)
-        ->and($count(['production']))->toBe(2)
-        ->and($count(['staging']))->toBe(1)
-        ->and($count(['production', 'staging']))->toBe(3);
-});
-
 it('filters the requests page by environment', function () {
-    Trace::factory()->create(['project_id' => $this->project->id]);
+    Trace::factory()->create(['project_id' => $this->project->id, 'environment_id' => $this->production->id]);
     Trace::factory()->create(['project_id' => $this->project->id, 'environment_id' => $this->staging->id]);
     Trace::factory()->create(['project_id' => $this->project->id, 'environment_id' => $this->staging->id]);
 
@@ -74,7 +61,7 @@ it('filters the logs page by environment', function () {
         'message' => 'hello',
         'occurred_at' => now(),
     ]);
-    $log(null);
+    $log($this->production->id);
     $log($this->staging->id);
 
     $this->get(route('projects.logs.index', [$this->project, 'env' => ['staging']]))
@@ -92,8 +79,8 @@ it('lists only the exceptions and issues seen in the selected environments', fun
     ]);
     $occur($stagingOnly, $this->staging->id);
     $occur($both, $this->staging->id);
-    $occur($both, null);
-    $occur($both, null);
+    $occur($both, $this->production->id);
+    $occur($both, $this->production->id);
 
     $this->get(route('projects.exceptions.index', [$this->project, 'env' => ['production'], 'range' => '24h']))
         ->assertInertia(fn (AssertableInertia $page) => $page
@@ -118,9 +105,9 @@ it('lists only the exceptions and issues seen in the selected environments', fun
         ->assertInertia(fn (AssertableInertia $page) => $page->has('groups.data', 2));
 });
 
-it('names the environments of an issue from their ids, with rows without one counted for the default', function () {
+it('names the environments of an issue through their relation', function () {
     $group = ErrorGroup::factory()->create(['project_id' => $this->project->id, 'display_number' => 1]);
-    foreach ([null, $this->production->id, $this->staging->id] as $environmentId) {
+    foreach ([$this->production->id, $this->production->id, $this->staging->id] as $environmentId) {
         ErrorOccurrence::factory()->create([
             'project_id' => $this->project->id,
             'error_group_id' => $group->id,
@@ -149,8 +136,8 @@ it('shares the environments of the project and the selection', function () {
     $this->get(route('projects.dashboard', [$this->project, 'env' => ['staging', 'unknown']]))
         ->assertInertia(fn (AssertableInertia $page) => $page
             ->where('currentProject.environments', [
-                ['id' => $this->production->id, 'slug' => 'production', 'name' => 'Production', 'is_default' => true],
-                ['id' => $this->staging->id, 'slug' => 'staging', 'name' => 'Staging', 'is_default' => false],
+                ['id' => $this->production->id, 'slug' => 'production', 'name' => 'Production'],
+                ['id' => $this->staging->id, 'slug' => 'staging', 'name' => 'Staging'],
             ])
             ->where('currentProject.selected_environments', ['staging']));
 });

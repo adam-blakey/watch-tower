@@ -250,7 +250,7 @@ class DemoDataSeeder extends Seeder
             'retention_days' => 30,
         ]);
         $project->save();
-        $apiKey = $project->createDefaultEnvironment();
+        $apiKey = $project->createEnvironment();
 
         $this->command?->info("Demo API key for {$project->name} (only its hash is stored, copy it now): {$apiKey}");
 
@@ -593,7 +593,6 @@ class DemoDataSeeder extends Seeder
             }
         }
 
-        // Filler queries to populate the long tail (low-weight templates picked at random).
         $filler = max(0, 800 - count($rows));
         for ($i = 0; $i < $filler; $i++) {
             $template = $templates[$weightedIndex[array_rand($weightedIndex)]];
@@ -717,7 +716,6 @@ class DemoDataSeeder extends Seeder
         $connections = ['redis', 'redis', 'redis', 'database', 'sqs'];
         $queues = ['default', 'default', 'default', 'high', 'low', 'emails'];
 
-        // Weighted status distribution: mostly completed, some released/queued, rare failures.
         $statuses = [
             'completed', 'completed', 'completed', 'completed', 'completed',
             'completed', 'completed', 'completed', 'completed', 'completed',

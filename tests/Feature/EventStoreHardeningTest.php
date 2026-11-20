@@ -17,7 +17,7 @@ beforeEach(function () {
 });
 
 it('truncates over-long strings to the column length', function (string $type, string $field, string $model, string $column, int $length) {
-    $this->store->store($this->project, ['type' => $type, 'data' => ['request_id' => 'req-1', $field => str_repeat('x', $length + 50)]]);
+    $this->store->store($this->project, ['type' => $type, 'data' => ['request_id' => 'req-1', $field => str_repeat('x', $length + 50)]], $this->project->environments()->value('id'));
 
     expect(mb_strlen($model::where('project_id', $this->project->id)->sole()->{$column}))->toBe($length);
 })->with([
@@ -42,7 +42,7 @@ it('does not throw when scalar fields carry arrays or absurd numbers', function 
         'request_size_bytes', 'response_size_bytes', 'level', 'name', 'email', 'fired_by', 'listeners_count', 'output',
         'occurred_at', 'next_run_at'];
 
-    $this->store->store($this->project, ['type' => $type, 'data' => ['request_id' => 'req-1', ...array_fill_keys($fields, $value)]]);
+    $this->store->store($this->project, ['type' => $type, 'data' => ['request_id' => 'req-1', ...array_fill_keys($fields, $value)]], $this->project->environments()->value('id'));
 })->with(EventStore::TYPES)->with([
     'array' => [['nested' => 'value']],
     'huge number' => [1e30],
@@ -56,7 +56,7 @@ it('replaces an oversized blob with a marker and keeps small ones', function () 
         'request_id' => 'req-1',
         'headers' => ['x-big' => str_repeat('a', 200)],
         'request_data' => ['small' => true],
-    ]]);
+    ]], $this->project->environments()->value('id'));
 
     $trace = Trace::sole();
 
@@ -70,7 +70,7 @@ it('stores an empty stacktrace instead of a marker when the stacktrace is oversi
     $this->store->store($this->project, ['type' => 'exception', 'data' => [
         'class' => 'RuntimeException',
         'trace' => [['file' => str_repeat('a', 200), 'line' => 1]],
-    ]]);
+    ]], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::sole()->stacktrace)->toBe([]);
 });
@@ -80,7 +80,7 @@ it('clamps a future occurred_at but keeps a future next_run_at', function () {
         'task' => 'inspire',
         'occurred_at' => '2099-01-01T00:00:00Z',
         'next_run_at' => '2099-01-01T00:00:00Z',
-    ]]);
+    ]], $this->project->environments()->value('id'));
 
     $run = ScheduledTaskRun::sole();
 

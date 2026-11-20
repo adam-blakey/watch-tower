@@ -94,7 +94,6 @@ final class MoveLock
                 try {
                     $connection->scalar('select release_lock(?)', [self::SERVER_LOCK_NAME]);
                 } catch (Throwable) {
-                    // The session ending releases it anyway.
                 }
             },
             function () use ($connection): void {

@@ -36,7 +36,6 @@ jobs:
         id: composer
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      # Check steps run even if an earlier check fails, so one run reports every failure.
       - name: Pint
         if: ${{ !cancelled() && steps.composer.outcome == 'success' }}
         run: vendor/bin/pint --test
@@ -48,7 +47,6 @@ jobs:
       - name: Migrations (up, rollback, up) on SQLite
         if: ${{ !cancelled() && steps.composer.outcome == 'success' }}
         env:
-          # testing, not production, so DB::prohibitDestructiveCommands() allows rollback
           APP_ENV: testing
           DB_CONNECTION: sqlite
           DB_DATABASE: ${{ runner.temp }}/ci.sqlite
@@ -64,7 +62,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
 
-      # node_modules itself is cached, so a lockfile-unchanged run skips `npm ci` entirely.
       - name: Cache node_modules
         id: node-modules
         if: ${{ !cancelled() && steps.composer.outcome == 'success' }}
@@ -77,7 +74,6 @@ jobs:
         if: ${{ !cancelled() && steps.composer.outcome == 'success' && steps.node-modules.outputs.cache-hit != 'true' }}
         run: npm ci --no-audit --no-fund
 
-      # tsc needs Wayfinder's generated route/action files (gitignored); --with-form matches vite.config.ts.
       - name: Generate Wayfinder types
         id: frontend
         if: ${{ !cancelled() && steps.composer.outcome == 'success' }}
