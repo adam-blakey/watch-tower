@@ -277,7 +277,7 @@ it('leaves empty dashboard duration buckets null and counts exceptions in the sa
         'duration_ms' => 40,
     ]);
 
-    $stats = (new DashboardStats)->forProject($this->project, $range);
+    $stats = (new DashboardStats)->forProject($this->project, $range, new EnvironmentFilter);
     $buckets = collect($stats['activity']['buckets']);
 
     expect($buckets->whereNull('avg_duration')->count())->toBe(59)
