@@ -30,7 +30,7 @@ beforeEach(function () {
                 'environment' => 'production',
                 'occurred_at' => $occurredAt,
             ],
-        ]);
+        ], $this->project->environments()->value('id'));
     };
 });
 

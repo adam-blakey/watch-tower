@@ -19,14 +19,20 @@ import { SettingsShell } from '@/layouts/settings-shell';
 import { formatRelativeTime } from '@/lib/utils';
 import type { LastPrune, NewApiKey, SharedProps } from '@/types/inertia';
 
+type Environment = {
+    id: string;
+    name: string;
+    api_key_prefix: string | null;
+    api_key_last_used_at: string | null;
+    previous_api_key_expires_at: string | null;
+};
+
 type Project = {
     id: string;
     name: string;
     slug: string;
     description: string | null;
-    api_key_prefix: string | null;
-    api_key_last_used_at: string | null;
-    previous_api_key_expires_at: string | null;
+    environments: Environment[];
     sampling_rate: number;
     retention_days: number;
     admins_count: number;
@@ -80,7 +86,10 @@ export default function ProjectsIndex({ projects, lastPrune }: Props) {
             ? flashedApiKey
             : null;
     const [target, setTarget] = useState<Project | null>(null);
-    const [rotateTarget, setRotateTarget] = useState<Project | null>(null);
+    const [rotateTarget, setRotateTarget] = useState<{
+        project: Project;
+        environment: Environment;
+    } | null>(null);
 
     return (
         <SettingsShell>
@@ -127,7 +136,7 @@ export default function ProjectsIndex({ projects, lastPrune }: Props) {
                                     Project
                                 </th>
                                 <th className="px-4 py-2.5 text-left font-medium">
-                                    API key
+                                    Environments
                                 </th>
                                 <th className="px-4 py-2.5 text-left font-medium">
                                     Sampling
@@ -165,24 +174,53 @@ export default function ProjectsIndex({ projects, lastPrune }: Props) {
                                                 {project.slug}
                                             </div>
                                         </td>
-                                        <td className="px-4 py-3">
-                                            <span className="inline-flex rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-muted-foreground">
-                                                {project.api_key_prefix
-                                                    ? `${project.api_key_prefix}…`
-                                                    : '—'}
-                                            </span>
-                                            <div className="mt-1 text-xs text-muted-foreground">
-                                                {project.api_key_last_used_at
-                                                    ? `Last used ${formatDateTime(project.api_key_last_used_at)}`
-                                                    : 'Never used'}
-                                            </div>
-                                            {project.previous_api_key_expires_at && (
-                                                <div className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
-                                                    Previous key valid until{' '}
-                                                    {formatDateTime(
-                                                        project.previous_api_key_expires_at,
-                                                    )}
-                                                </div>
+                                        <td className="space-y-3 px-4 py-3">
+                                            {project.environments.map(
+                                                (environment) => (
+                                                    <div key={environment.id}>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-medium">
+                                                                {
+                                                                    environment.name
+                                                                }
+                                                            </span>
+                                                            <span className="inline-flex rounded-md border border-border bg-background px-2 py-1 font-mono text-xs text-muted-foreground">
+                                                                {environment.api_key_prefix
+                                                                    ? `${environment.api_key_prefix}…`
+                                                                    : '—'}
+                                                            </span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                title={`Rotate the ${environment.name} API key`}
+                                                                onClick={() =>
+                                                                    setRotateTarget(
+                                                                        {
+                                                                            project,
+                                                                            environment,
+                                                                        },
+                                                                    )
+                                                                }
+                                                            >
+                                                                <KeyRound className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </div>
+                                                        <div className="mt-1 text-xs text-muted-foreground">
+                                                            {environment.api_key_last_used_at
+                                                                ? `Last used ${formatDateTime(environment.api_key_last_used_at)}`
+                                                                : 'Never used'}
+                                                        </div>
+                                                        {environment.previous_api_key_expires_at && (
+                                                            <div className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                                                                Previous key
+                                                                valid until{' '}
+                                                                {formatDateTime(
+                                                                    environment.previous_api_key_expires_at,
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ),
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-muted-foreground">
@@ -224,16 +262,6 @@ export default function ProjectsIndex({ projects, lastPrune }: Props) {
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    title="Rotate API key"
-                                                    onClick={() =>
-                                                        setRotateTarget(project)
-                                                    }
-                                                >
-                                                    <KeyRound className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
                                                     onClick={() =>
                                                         setTarget(project)
                                                     }
@@ -253,7 +281,8 @@ export default function ProjectsIndex({ projects, lastPrune }: Props) {
 
             {rotateTarget && (
                 <RotateKeyDialog
-                    project={rotateTarget}
+                    project={rotateTarget.project}
+                    environment={rotateTarget.environment}
                     onClose={() => setRotateTarget(null)}
                 />
             )}
@@ -345,9 +374,11 @@ function CopyButton({ value }: { value: string }) {
 
 function RotateKeyDialog({
     project,
+    environment,
     onClose,
 }: {
     project: Project;
+    environment: Environment;
     onClose: () => void;
 }) {
     const [graceHours, setGraceHours] = useState(24);
@@ -358,7 +389,10 @@ function RotateKeyDialog({
         setProcessing(true);
         setError(null);
         router.post(
-            ProjectAdminController.rotateKey.url({ project: project.slug }),
+            ProjectAdminController.rotateKey.url({
+                project: project.slug,
+                environment: environment.id,
+            }),
             { grace_hours: graceHours },
             {
                 onError: (errs) =>
@@ -386,7 +420,7 @@ function RotateKeyDialog({
                         <p className="text-xs text-muted-foreground">
                             This issues a new key for{' '}
                             <span className="font-medium text-foreground">
-                                {project.name}
+                                {project.name} ({environment.name})
                             </span>
                             . After the grace period, agents still using the old
                             key are rejected until their NIGHTWATCH_TOKEN is

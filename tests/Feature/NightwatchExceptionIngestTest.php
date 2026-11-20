@@ -266,7 +266,7 @@ it('stores the handled flag of a legacy event given as handled or is_handled', f
             'occurred_at' => '2026-03-01T10:00:00Z',
             ...$flag,
         ],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole()->is_handled)->toBeTrue()
         ->and(nightwatchExceptionGroup($this->project)->is_handled)->toBeTrue();
@@ -279,7 +279,7 @@ it('stores a legacy event without a flag as unhandled', function () {
     (new EventStore(new Fingerprinter))->store($this->project, [
         'type' => 'exception',
         'data' => ['class' => 'RuntimeException', 'occurred_at' => '2026-03-01T10:00:00Z'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole())
         ->is_handled->toBeFalse()
@@ -313,7 +313,7 @@ it('marks the trace as having errors and rolls that back with the occurrence', f
             'class' => 'RuntimeException',
             'occurred_at' => '2026-07-01T10:15:00Z',
         ],
-    ]))->toThrow(RuntimeException::class, 'insert failed');
+    ], $this->project->environments()->value('id')))->toThrow(RuntimeException::class, 'insert failed');
 
     expect($trace->refresh()->has_errors)->toBeFalse()
         ->and(ErrorOccurrence::count())->toBe(0)

@@ -63,7 +63,7 @@ it('rejects an unknown key', function (string $surface) {
 })->with('key surfaces');
 
 it('accepts the new key and the previous key during the grace period', function (string $surface) {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $newKey = $environment->rotateApiKey(gracePeriodSeconds: 3600);
 
     expect(presentApiKey($surface, 'pk_test_old'))->toBeIn([200, 202])
@@ -71,7 +71,7 @@ it('accepts the new key and the previous key during the grace period', function 
 })->with('key surfaces');
 
 it('rejects the previous key once the grace period has ended', function (string $surface) {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $newKey = $environment->rotateApiKey(gracePeriodSeconds: 3600);
 
     $this->travel(61)->minutes();
@@ -81,7 +81,7 @@ it('rejects the previous key once the grace period has ended', function (string 
 })->with('key surfaces');
 
 it('rejects the previous key at once after a rotation without a grace period', function (string $surface) {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $newKey = $environment->rotateApiKey();
 
     expect(presentApiKey($surface, 'pk_test_old'))->toBe(401)
@@ -89,7 +89,7 @@ it('rejects the previous key at once after a rotation without a grace period', f
 })->with('key surfaces');
 
 it('only keeps the key that was current before the latest rotation', function () {
-    $environment = Project::factory()->withApiKey('pk_test_first')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_first')->create()->environments()->sole();
     $second = $environment->rotateApiKey(gracePeriodSeconds: 3600);
     $third = $environment->rotateApiKey(gracePeriodSeconds: 3600);
 
@@ -108,7 +108,7 @@ it('does not authenticate a project that is being deleted', function () {
 });
 
 it('generates a prefixed key and stores only its hash and display prefix', function () {
-    $environment = Project::factory()->create()->defaultEnvironment;
+    $environment = Project::factory()->create()->environments()->sole();
     $key = $environment->rotateApiKey();
 
     $row = (array) DB::table('environments')->where('id', $environment->id)->first();
@@ -121,7 +121,7 @@ it('generates a prefixed key and stores only its hash and display prefix', funct
 });
 
 it('moves the current hash to the previous slot with an expiry, and clears it without a grace period', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
 
     $environment->rotateApiKey(gracePeriodSeconds: 7200);
     $environment->refresh();
@@ -141,7 +141,7 @@ it('moves the current hash to the previous slot with an expiry, and clears it wi
 });
 
 it('keeps the key hashes out of serialized environments', function () {
-    $environment = Project::factory()->create()->defaultEnvironment;
+    $environment = Project::factory()->create()->environments()->sole();
     $environment->rotateApiKey(gracePeriodSeconds: 3600);
 
     expect($environment->fresh()->toArray())
@@ -150,7 +150,7 @@ it('keeps the key hashes out of serialized environments', function () {
 });
 
 it('records the key version in the agent token', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
 
     $payload = fn (string $token) => json_decode(Crypt::decryptString($token), true);
 
@@ -163,7 +163,7 @@ it('records the key version in the agent token', function () {
 });
 
 it('rejects a token issued before a rotation without a grace period', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $token = issuedToken('pk_test_old');
 
     ingestWithToken($token)->assertOk();
@@ -176,7 +176,7 @@ it('rejects a token issued before a rotation without a grace period', function (
 });
 
 it('keeps a token issued before a rotation only for the grace period', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $token = issuedToken('pk_test_old');
 
     $environment->rotateApiKey(gracePeriodSeconds: 3600);
@@ -189,7 +189,7 @@ it('keeps a token issued before a rotation only for the grace period', function 
 });
 
 it('keeps a token issued with the previous key only for the grace period', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $environment->rotateApiKey(gracePeriodSeconds: 3600);
     $token = issuedToken('pk_test_old');
 
@@ -201,7 +201,7 @@ it('keeps a token issued with the previous key only for the grace period', funct
 });
 
 it('keeps a token issued with the new key valid after the grace period', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $newKey = $environment->rotateApiKey(gracePeriodSeconds: 3600);
     $token = issuedToken($newKey);
 
@@ -211,7 +211,7 @@ it('keeps a token issued with the new key valid after the grace period', functio
 });
 
 it('revokes tokens from two rotations ago even while the latest grace period runs', function () {
-    $environment = Project::factory()->withApiKey('pk_test_first')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_first')->create()->environments()->sole();
     $token = issuedToken('pk_test_first');
 
     $second = $environment->rotateApiKey(gracePeriodSeconds: 3600);
@@ -223,7 +223,7 @@ it('revokes tokens from two rotations ago even while the latest grace period run
 });
 
 it('accepts a token without a key version only while the key has never been rotated', function () {
-    $environment = Project::factory()->create()->defaultEnvironment;
+    $environment = Project::factory()->create()->environments()->sole();
     $legacyToken = Crypt::encryptString(json_encode([
         'project_id' => $environment->project_id,
         'expires_at' => time() + 3600,
@@ -237,7 +237,7 @@ it('accepts a token without a key version only while the key has never been rota
 });
 
 it('stamps the last use of a key and does not rewrite it on every request', function () {
-    $environment = Project::factory()->withApiKey('pk_test_current')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_current')->create()->environments()->sole();
     $createdAt = $environment->fresh()->updated_at;
 
     expect($environment->fresh()->api_key_last_used_at)->toBeNull();
@@ -266,7 +266,7 @@ it('stamps the last use of a key and does not rewrite it on every request', func
 });
 
 it('counts a use of the previous key too', function () {
-    $environment = Project::factory()->withApiKey('pk_test_old')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_old')->create()->environments()->sole();
     $environment->rotateApiKey(gracePeriodSeconds: 3600);
 
     presentApiKey('ingest', 'pk_test_old');
@@ -275,7 +275,7 @@ it('counts a use of the previous key too', function () {
 });
 
 it('does not stamp a key use for a rejected key', function () {
-    $environment = Project::factory()->withApiKey('pk_test_current')->create()->defaultEnvironment;
+    $environment = Project::factory()->withApiKey('pk_test_current')->create()->environments()->sole();
 
     presentApiKey('ingest', 'pk_test_unknown');
 

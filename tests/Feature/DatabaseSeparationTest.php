@@ -222,7 +222,7 @@ describe('ingest transactions', function () {
         $depths = transactionDepthsDuring(ErrorOccurrence::class, 'creating', fn () => $this->store->store($this->project, [
             'type' => 'exception',
             'data' => ['class' => 'RuntimeException', 'file' => 'app/A.php', 'line' => 5, 'message' => 'boom', 'occurred_at' => '2026-03-01T10:00:00Z'],
-        ]));
+        ], $this->project->environments()->value('id')));
 
         expect($depths)->toBe([['telemetry' => 1, 'default' => 0]]);
     });
@@ -233,7 +233,7 @@ describe('ingest transactions', function () {
                 $this->store->store($this->project, [
                     'type' => 'exception',
                     'data' => ['class' => 'RuntimeException', 'file' => 'app/A.php', 'line' => 5, 'message' => 'boom', 'occurred_at' => $occurredAt],
-                ]);
+                ], $this->project->environments()->value('id'));
 
                 if ($index === 0) {
                     ErrorGroup::query()->where('project_id', $this->project->id)->update(['status' => 'resolved', 'resolved_at' => '2026-03-02 09:00:00']);
@@ -250,7 +250,7 @@ describe('ingest transactions', function () {
         $depths = transactionDepthsDuring(TraceQuery::class, 'creating', fn () => $this->store->store($this->project, [
             'type' => 'query',
             'data' => ['request_id' => 'req-1', 'sql' => 'select 1', 'duration_ms' => 3],
-        ]));
+        ], $this->project->environments()->value('id')));
 
         expect($depths)->toBe([['telemetry' => 1, 'default' => 0]])
             ->and($trace->fresh()->db_time_ms)->toBe(3.0);
@@ -258,10 +258,10 @@ describe('ingest transactions', function () {
 
     it('locks a repeated job attempt inside a telemetry transaction', function () {
         $attempt = ['type' => 'job-attempt', 'data' => ['job_id' => 'job-1', 'class' => 'App\\Jobs\\Example', 'status' => 'released', 'attempts' => 1, 'started_at' => '2026-03-01T10:00:00Z']];
-        $this->store->store($this->project, $attempt);
+        $this->store->store($this->project, $attempt, $this->project->environments()->value('id'));
         $attempt['data'] = [...$attempt['data'], 'status' => 'processed', 'attempts' => 2, 'started_at' => '2026-03-01T10:01:00Z'];
 
-        $depths = transactionDepthsDuring(QueueJobRun::class, 'updating', fn () => $this->store->store($this->project, $attempt));
+        $depths = transactionDepthsDuring(QueueJobRun::class, 'updating', fn () => $this->store->store($this->project, $attempt, $this->project->environments()->value('id')));
 
         expect($depths)->toBe([['telemetry' => 1, 'default' => 0]])
             ->and(QueueJobRun::sole()->status)->toBe('processed');
@@ -271,7 +271,7 @@ describe('ingest transactions', function () {
         $this->store->store($this->project, [
             'type' => 'log',
             'data' => ['request_id' => 'req-9', 'level' => 'info', 'message' => 'hello'],
-        ]);
+        ], $this->project->environments()->value('id'));
 
         expect(DB::connection(Databases::LOGS)->table('log_entries')->count())->toBe(1)
             ->and(DB::connection(Databases::TELEMETRY)->table('traces')->where('correlation_id', 'req-9')->count())->toBe(1)

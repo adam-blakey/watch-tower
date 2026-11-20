@@ -23,7 +23,7 @@ function storeDbTimeQuery(Project $project, string $correlationId, float $durati
     ($store ?? new EventStore(new Fingerprinter))->store($project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'select 1', 'duration_ms' => $durationMs],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 function storeDbTimeRequest(Project $project, string $correlationId, array $extra = []): void
@@ -31,7 +31,7 @@ function storeDbTimeRequest(Project $project, string $correlationId, array $extr
     (new EventStore(new Fingerprinter))->store($project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/example', 'status_code' => 200, 'db_queries_count' => 2, ...$extra],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 it('sums query durations into the trace whichever record arrives first', function (bool $queriesFirst) {

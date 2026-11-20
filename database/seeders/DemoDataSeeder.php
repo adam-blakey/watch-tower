@@ -250,7 +250,7 @@ class DemoDataSeeder extends Seeder
             'retention_days' => 30,
         ]);
         $project->save();
-        $apiKey = $project->createDefaultEnvironment();
+        $apiKey = $project->createEnvironment();
 
         $this->command?->info("Demo API key for {$project->name} (only its hash is stored, copy it now): {$apiKey}");
 

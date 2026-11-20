@@ -49,6 +49,12 @@ class ProcessWatchEvent implements ShouldQueue
             return;
         }
 
-        $store->store($project, $this->event, $this->environmentId);
+        $environmentId = $this->environmentId ?? $project->soleEnvironment()?->id;
+
+        if ($environmentId === null) {
+            return;
+        }
+
+        $store->store($project, $this->event, $environmentId);
     }
 }

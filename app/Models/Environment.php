@@ -18,7 +18,6 @@ use Illuminate\Support\Str;
     'project_id',
     'name',
     'slug',
-    'is_default',
 ])]
 #[Hidden(['api_key_hash', 'previous_api_key_hash'])]
 class Environment extends Model
@@ -44,7 +43,6 @@ class Environment extends Model
     protected function casts(): array
     {
         return [
-            'is_default' => 'boolean',
             'api_key_version' => 'integer',
             'previous_api_key_expires_at' => 'datetime',
             'api_key_last_used_at' => 'datetime',

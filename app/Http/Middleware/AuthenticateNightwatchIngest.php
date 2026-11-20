@@ -51,7 +51,7 @@ class AuthenticateNightwatchIngest
 
         $environment = isset($payload['environment_id'])
             ? $project->environments()->find($payload['environment_id'])
-            : $project->defaultEnvironment;
+            : $project->soleEnvironment();
 
         if (! $environment) {
             return $this->unauthorized('Unknown environment');

@@ -40,7 +40,7 @@ class EventStore
      *
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
      */
-    public function store(Project $project, array $event, ?string $environmentId = null): void
+    public function store(Project $project, array $event, string $environmentId): void
     {
         match ($event['type']) {
             'request' => $this->storeRequest($project, $environmentId, $event['data']),
@@ -79,7 +79,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeRequest(Project $project, ?string $environmentId, array $data): void
+    private function storeRequest(Project $project, string $environmentId, array $data): void
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 
@@ -163,7 +163,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeQuery(Project $project, ?string $environmentId, array $data): void
+    private function storeQuery(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -211,7 +211,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeException(Project $project, ?string $environmentId, array $data): void
+    private function storeException(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -324,7 +324,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeEvent(Project $project, ?string $environmentId, array $data): void
+    private function storeEvent(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -350,7 +350,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJob(Project $project, ?string $environmentId, array $data): void
+    private function storeJob(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -396,7 +396,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeCacheEvent(Project $project, ?string $environmentId, array $data): void
+    private function storeCacheEvent(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -426,7 +426,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeJobAttempt(Project $project, ?string $environmentId, array $data): void
+    private function storeJobAttempt(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
         $jobId = $this->limitedString($data['job_id'] ?? null, 64);
@@ -533,7 +533,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeCommand(Project $project, ?string $environmentId, array $data): void
+    private function storeCommand(Project $project, string $environmentId, array $data): void
     {
         CommandRun::create([
             'project_id' => $project->id,
@@ -562,7 +562,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeScheduledTask(Project $project, ?string $environmentId, array $data): void
+    private function storeScheduledTask(Project $project, string $environmentId, array $data): void
     {
         $task = $this->limitedString($data['task'] ?? null, 255) ?? 'unknown';
         $suppliedHash = $this->stringOrNull($data['task_hash'] ?? null);
@@ -599,7 +599,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeMail(Project $project, ?string $environmentId, array $data): void
+    private function storeMail(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -623,7 +623,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeNotification(Project $project, ?string $environmentId, array $data): void
+    private function storeNotification(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -644,7 +644,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeOutgoingRequest(Project $project, ?string $environmentId, array $data): void
+    private function storeOutgoingRequest(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -696,7 +696,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function storeUser(Project $project, ?string $environmentId, array $data): void
+    private function storeUser(Project $project, string $environmentId, array $data): void
     {
         $identifier = $this->limitedString($data['user_id'] ?? null, 255);
         $name = $this->limitedString($data['name'] ?? null, 255);
@@ -918,7 +918,7 @@ class EventStore
     /**
      * @param  array<string, mixed>  $data
      */
-    private function storeLog(Project $project, ?string $environmentId, array $data): void
+    private function storeLog(Project $project, string $environmentId, array $data): void
     {
         $trace = $this->resolveTrace($project, $environmentId, $data);
 
@@ -952,7 +952,7 @@ class EventStore
      *
      * @param  array<string, mixed>  $data
      */
-    private function resolveTrace(Project $project, ?string $environmentId, array $data): ?Trace
+    private function resolveTrace(Project $project, string $environmentId, array $data): ?Trace
     {
         $correlationId = $this->limitedString($data['request_id'] ?? $data['correlation_id'] ?? null, 255);
 

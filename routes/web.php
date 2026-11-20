@@ -64,7 +64,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
             Route::post('/projects', [ProjectAdminController::class, 'store'])->name('projects.store');
             Route::get('/projects/{project:slug}/edit', [ProjectAdminController::class, 'edit'])->name('projects.edit');
             Route::patch('/projects/{project:slug}', [ProjectAdminController::class, 'update'])->name('projects.update');
-            Route::post('/projects/{project:slug}/rotate-key', [ProjectAdminController::class, 'rotateKey'])->name('projects.rotate-key');
+            Route::post('/projects/{project:slug}/environments/{environment}/rotate-key', [ProjectAdminController::class, 'rotateKey'])->scopeBindings()->name('projects.environments.rotate-key');
             Route::delete('/projects/{project:slug}', [ProjectAdminController::class, 'destroy'])->name('projects.destroy');
         });
     });

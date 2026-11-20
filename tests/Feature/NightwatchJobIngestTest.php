@@ -264,8 +264,8 @@ it('still stores a legacy job event without a job id as a separate row', functio
     $store = app(EventStore::class);
     $event = ['type' => 'job', 'data' => ['class' => 'App\\Jobs\\Legacy', 'status' => 'completed', 'attempts' => 1, 'user_id' => '7']];
 
-    $store->store($this->project, $event);
-    $store->store($this->project, $event);
+    $store->store($this->project, $event, $this->project->environments()->value('id'));
+    $store->store($this->project, $event, $this->project->environments()->value('id'));
 
     expect(QueueJobRun::count())->toBe(2)
         ->and(QueueJobRun::whereNull('job_id')->count())->toBe(2)

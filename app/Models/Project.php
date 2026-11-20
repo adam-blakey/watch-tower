@@ -12,7 +12,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'organization_id',
@@ -52,13 +51,9 @@ class Project extends Model
         ];
     }
 
-    public function createDefaultEnvironment(): string
+    public function createEnvironment(string $name = Environment::DEFAULT_NAME, string $slug = Environment::DEFAULT_SLUG): string
     {
-        $environment = $this->environments()->make([
-            'name' => Environment::DEFAULT_NAME,
-            'slug' => Environment::DEFAULT_SLUG,
-            'is_default' => true,
-        ]);
+        $environment = $this->environments()->make(['name' => $name, 'slug' => $slug]);
         $apiKey = $environment->issueApiKey();
         $environment->save();
 
@@ -89,12 +84,11 @@ class Project extends Model
         return $this->hasMany(Environment::class);
     }
 
-    /**
-     * @return HasOne<Environment, $this>
-     */
-    public function defaultEnvironment(): HasOne
+    public function soleEnvironment(): ?Environment
     {
-        return $this->hasOne(Environment::class)->where('is_default', true);
+        $environments = $this->environments()->limit(2)->get();
+
+        return $environments->count() === 1 ? $environments->first() : null;
     }
 
     /**
