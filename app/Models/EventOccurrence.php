@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'trace_id',
     'event_class',
     'fired_by',

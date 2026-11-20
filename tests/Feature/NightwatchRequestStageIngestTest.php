@@ -4,6 +4,7 @@ use App\Models\CommandRun;
 use App\Models\Project;
 use App\Models\Trace;
 use App\Models\User;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\RequestStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -163,7 +164,7 @@ it('stores the three stages of a command record', function () {
 it('returns the route name and action with each route', function () {
     postNightwatchRecords([stageIngestRequest($this->traceId, $this->now)], ingestToken($this->project->id))->assertOk();
 
-    $routes = (new RequestStats)->routes($this->project, $this->range);
+    $routes = (new RequestStats)->routes($this->project, $this->range, new EnvironmentFilter);
 
     expect($routes)->toHaveCount(1)
         ->and($routes[0]['route_name'])->toBe('orders.show')
@@ -175,11 +176,11 @@ it('finds a route by its name', function () {
 
     $stats = new RequestStats;
 
-    $matched = $stats->routes($this->project, $this->range, null, 'orders.show');
+    $matched = $stats->routes($this->project, $this->range, new EnvironmentFilter, null, 'orders.show');
 
     expect($matched)->toHaveCount(1)
         ->and($matched[0]['p95_ms'])->not->toBeNull()
-        ->and($stats->routes($this->project, $this->range, null, 'invoices.show'))->toBeEmpty();
+        ->and($stats->routes($this->project, $this->range, new EnvironmentFilter, null, 'invoices.show'))->toBeEmpty();
 });
 
 it('averages the stages and sizes in the route detail', function () {
@@ -189,7 +190,7 @@ it('averages the stages and sizes in the route detail', function () {
         stageIngestRequest((string) Str::uuid(), $this->now, ['bootstrap' => null, 'request_size' => null]),
     ], ingestToken($this->project->id))->assertOk();
 
-    $detail = (new RequestStats)->routeDetail($this->project, $this->range, 'GET', '/orders/{order}');
+    $detail = (new RequestStats)->routeDetail($this->project, $this->range, new EnvironmentFilter, 'GET', '/orders/{order}');
 
     expect($detail['route'])->toBe([
         'name' => 'orders.show',
@@ -209,7 +210,7 @@ it('averages the stages only over requests that carry stage data', function () {
     postNightwatchRecords([stageIngestRequest($this->traceId, $this->now)], ingestToken($this->project->id))->assertOk();
     stageSyncRequest($this->project, (string) Str::uuid(), ['occurred_at' => $this->now->toIso8601String()]);
 
-    $detail = (new RequestStats)->routeDetail($this->project, $this->range, 'GET', '/orders/{order}');
+    $detail = (new RequestStats)->routeDetail($this->project, $this->range, new EnvironmentFilter, 'GET', '/orders/{order}');
 
     expect($detail['recent'])->toHaveCount(2)
         ->and($detail['stages']['bootstrap'])->toEqualWithDelta(1.234, 0.0001)
@@ -226,7 +227,7 @@ it('stores the route methods of a legacy request as an upper-case joined string'
 it('returns null stages for a route without stage data', function () {
     stageSyncRequest($this->project, $this->traceId, ['occurred_at' => $this->now->toIso8601String()]);
 
-    $detail = (new RequestStats)->routeDetail($this->project, $this->range, 'GET', '/orders/{order}');
+    $detail = (new RequestStats)->routeDetail($this->project, $this->range, new EnvironmentFilter, 'GET', '/orders/{order}');
 
     expect($detail['stages'])->each->toBeNull()
         ->and($detail['sizes'])->toBe(['avg_request_bytes' => null, 'avg_response_bytes' => null])

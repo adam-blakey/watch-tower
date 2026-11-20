@@ -16,13 +16,18 @@ class ProcessWatchEvent implements ShouldQueue
 
     public int $backoff = 5;
 
+    public ?string $environmentId = null;
+
     /**
      * @param  array{type: string, id?: string, data: array<string, mixed>}  $event
      */
     public function __construct(
         public readonly string $projectId,
         public readonly array $event,
-    ) {}
+        ?string $environmentId = null,
+    ) {
+        $this->environmentId = $environmentId;
+    }
 
     /**
      * Store the event unless the project's sampling rate drops it.
@@ -44,6 +49,12 @@ class ProcessWatchEvent implements ShouldQueue
             return;
         }
 
-        $store->store($project, $this->event);
+        $environmentId = $this->environmentId ?? $project->soleEnvironment()?->id;
+
+        if ($environmentId === null) {
+            return;
+        }
+
+        $store->store($project, $this->event, $environmentId);
     }
 }

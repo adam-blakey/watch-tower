@@ -156,3 +156,8 @@ function seedTelemetry(Project $project, CarbonInterface $at): void
         'updated_at' => $at,
     ]);
 }
+
+function restoreEnvironmentsDeletingAt(): void
+{
+    (require glob(database_path('migrations/*_add_deleting_at_to_environments_table.php'))[0])->up();
+}

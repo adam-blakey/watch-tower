@@ -448,6 +448,10 @@ function UserFooter({
 
 function navigationGroups(project: CurrentProject): NavGroup[] {
     const slug = project.slug;
+    const keepEnvironments =
+        project.selected_environments.length > 0
+            ? { query: { env: project.selected_environments } }
+            : undefined;
 
     return [
         {
@@ -456,13 +460,13 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Dashboard',
                     icon: LayoutDashboard,
-                    href: dashboard(slug).url,
-                    matches: (p) => p.endsWith('/dashboard'),
+                    href: dashboard(slug, keepEnvironments).url,
+                    matches: (p) => p.includes('/dashboard'),
                 },
                 {
                     label: 'Issues',
                     icon: Bug,
-                    href: issues.index(slug).url,
+                    href: issues.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/issues') ||
                         p.includes('/issues?') ||
@@ -477,14 +481,14 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Requests',
                     icon: Activity,
-                    href: requests.index(slug).url,
+                    href: requests.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/requests') || p.includes('/requests?'),
                 },
                 {
                     label: 'Jobs',
                     icon: Workflow,
-                    href: jobs.index(slug).url,
+                    href: jobs.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/jobs') ||
                         p.includes('/jobs?') ||
@@ -493,7 +497,7 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Commands',
                     icon: Terminal,
-                    href: commands.index(slug).url,
+                    href: commands.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/commands') ||
                         p.includes('/commands?') ||
@@ -502,7 +506,7 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Scheduled Tasks',
                     icon: CalendarClock,
-                    href: scheduledTasks.index(slug).url,
+                    href: scheduledTasks.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/scheduled-tasks') ||
                         p.includes('/scheduled-tasks?') ||
@@ -511,14 +515,14 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Exceptions',
                     icon: AlertTriangle,
-                    href: exceptions.index(slug).url,
+                    href: exceptions.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/exceptions') || p.includes('/exceptions?'),
                 },
                 {
                     label: 'Queries',
                     icon: Database,
-                    href: queries.index(slug).url,
+                    href: queries.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/queries') ||
                         p.includes('/queries?') ||
@@ -527,25 +531,25 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Cache',
                     icon: HardDrive,
-                    href: cache.index(slug).url,
+                    href: cache.index(slug, keepEnvironments).url,
                     matches: (p) => p.includes('/cache'),
                 },
                 {
                     label: 'Notifications',
                     icon: Bell,
-                    href: notifications.index(slug).url,
+                    href: notifications.index(slug, keepEnvironments).url,
                     matches: (p) => p.includes('/notifications'),
                 },
                 {
                     label: 'Mail',
                     icon: Mail,
-                    href: mail.index(slug).url,
+                    href: mail.index(slug, keepEnvironments).url,
                     matches: (p) => p.includes('/mail'),
                 },
                 {
                     label: 'HTTP Client',
                     icon: Network,
-                    href: httpClient.index(slug).url,
+                    href: httpClient.index(slug, keepEnvironments).url,
                     matches: (p) => p.includes('/http-client'),
                 },
             ],
@@ -556,7 +560,7 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Users',
                     icon: Users,
-                    href: users.index(slug).url,
+                    href: users.index(slug, keepEnvironments).url,
                     matches: (p) =>
                         p.endsWith('/users') ||
                         p.includes('/users?') ||
@@ -565,7 +569,7 @@ function navigationGroups(project: CurrentProject): NavGroup[] {
                 {
                     label: 'Logs',
                     icon: FileText,
-                    href: logs.index(slug).url,
+                    href: logs.index(slug, keepEnvironments).url,
                     matches: (p) => p.endsWith('/logs') || p.includes('/logs?'),
                 },
             ],

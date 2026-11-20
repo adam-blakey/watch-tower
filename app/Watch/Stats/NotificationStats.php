@@ -16,9 +16,9 @@ class NotificationStats
      *   buckets: list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $notificationClass = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $notificationClass = null): array
     {
-        $base = $this->baseQuery($project, $range, $notificationClass);
+        $base = $this->baseQuery($project, $range, $environments, $notificationClass);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -43,7 +43,7 @@ class NotificationStats
                 'avg_ms' => $stats?->avg_duration !== null ? (float) $stats->avg_duration : null,
                 'p95_ms' => $this->percentile($durations, 0.95),
             ],
-            'buckets' => $this->buckets($project, $range, $notificationClass),
+            'buckets' => $this->buckets($project, $range, $environments, $notificationClass),
         ];
     }
 
@@ -53,6 +53,7 @@ class NotificationStats
     public function paginatedNotifications(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -60,7 +61,7 @@ class NotificationStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->notifications($project, $range, $search),
+            items: $this->notifications($project, $range, $environments, $search),
             sortable: [
                 'notification_class' => 'string',
                 'count' => 'numeric',
@@ -77,9 +78,9 @@ class NotificationStats
     /**
      * @return list<array{notification_class:string,hash:string,count:int,avg_ms:float|null,p95_ms:float|null}>
      */
-    public function notifications(Project $project, TimeRange $range, ?string $search = null): array
+    public function notifications(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('notification_class', 'like', '%'.$search.'%');
@@ -92,7 +93,7 @@ class NotificationStats
             ->groupBy('notification_class')
             ->get();
 
-        $durationsByClass = $this->durationsByClass($project, $range, $search);
+        $durationsByClass = $this->durationsByClass($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByClass) {
@@ -120,10 +121,11 @@ class NotificationStats
      *   sends: list<array{id:string,channel:string,source_type:string|null,source_label:string|null,duration_ms:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function notificationDetail(Project $project, TimeRange $range, string $hash): ?array
+    public function notificationDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $hash): ?array
     {
         $notificationClass = NotificationSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->select('notification_class')
             ->get()
@@ -135,10 +137,11 @@ class NotificationStats
             return null;
         }
 
-        $summary = $this->summary($project, $range, $notificationClass);
+        $summary = $this->summary($project, $range, $environments, $notificationClass);
 
         $sends = NotificationSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('notification_class', $notificationClass)
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->orderByDesc('occurred_at')
@@ -173,10 +176,11 @@ class NotificationStats
     /**
      * @return Builder<NotificationSend>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $notificationClass = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $notificationClass = null): Builder
     {
         $query = NotificationSend::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($notificationClass !== null) {
@@ -189,13 +193,13 @@ class NotificationStats
     /**
      * @return list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $notificationClass = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $notificationClass = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $notificationClass)
+        $rows = $this->baseQuery($project, $range, $environments, $notificationClass)
             ->orderBy('occurred_at')
             ->get(['duration_ms', 'occurred_at']);
 
@@ -235,9 +239,9 @@ class NotificationStats
     /**
      * @return array<string, list<float>>
      */
-    private function durationsByClass(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByClass(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('notification_class', 'like', '%'.$search.'%');

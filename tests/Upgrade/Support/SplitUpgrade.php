@@ -22,6 +22,8 @@ final class SplitUpgrade
 {
     public const FIRST_SPLIT_MIGRATION = '_move_telemetry_tables_to_telemetry_database.php';
 
+    public const LAST_SPLIT_MIGRATION = '_add_full_text_index_to_log_entries.php';
+
     public string $directory;
 
     /**
@@ -124,7 +126,16 @@ final class SplitUpgrade
      */
     public function migrate(): int
     {
-        return Artisan::call('migrate', ['--force' => true]);
+        $last = basename(glob(database_path('migrations/*'.self::LAST_SPLIT_MIGRATION))[0]);
+
+        return Artisan::call('migrate', [
+            '--force' => true,
+            '--realpath' => true,
+            '--path' => array_values(array_filter(
+                glob(database_path('migrations/*.php')),
+                fn (string $file): bool => basename($file) <= $last,
+            )),
+        ]);
     }
 
     public function rollback(): int

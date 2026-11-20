@@ -4,6 +4,7 @@ use App\Models\Project;
 use App\Models\QueueJobRun;
 use App\Models\Trace;
 use App\Watch\EventStore;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\JobStats;
 use App\Watch\Stats\TimeRange;
 use App\Watch\Stats\UserStats;
@@ -228,7 +229,7 @@ it('feeds the job statistics', function () {
         nightwatchJobAttemptRecord(['job_id' => 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'attempt_id' => '44444444-4444-4444-8444-444444444444', 'status' => 'failed', 'duration' => 3_000_000]),
     );
 
-    $summary = (new JobStats)->summary($this->project, nightwatchJobStatsRange());
+    $summary = (new JobStats)->summary($this->project, nightwatchJobStatsRange(), new EnvironmentFilter);
 
     expect($summary['totals'])->toBe(['total' => 3, 'queued' => 1, 'processed' => 1, 'released' => 0, 'failed' => 1])
         ->and($summary['duration']['min_ms'])->toBe(1250)
@@ -254,7 +255,7 @@ it('attributes jobs to the dispatching user', function () {
         nightwatchJobAttemptRecord(),
     );
 
-    $users = collect((new UserStats)->list($this->project, nightwatchJobStatsRange()))->keyBy('id');
+    $users = collect((new UserStats)->list($this->project, nightwatchJobStatsRange(), new EnvironmentFilter))->keyBy('id');
 
     expect(QueueJobRun::sole()->user_identifier)->toBe('42')
         ->and($users['42']['queued_jobs'])->toBe(1);
@@ -264,8 +265,8 @@ it('still stores a legacy job event without a job id as a separate row', functio
     $store = app(EventStore::class);
     $event = ['type' => 'job', 'data' => ['class' => 'App\\Jobs\\Legacy', 'status' => 'completed', 'attempts' => 1, 'user_id' => '7']];
 
-    $store->store($this->project, $event);
-    $store->store($this->project, $event);
+    $store->store($this->project, $event, $this->project->environments()->value('id'));
+    $store->store($this->project, $event, $this->project->environments()->value('id'));
 
     expect(QueueJobRun::count())->toBe(2)
         ->and(QueueJobRun::whereNull('job_id')->count())->toBe(2)

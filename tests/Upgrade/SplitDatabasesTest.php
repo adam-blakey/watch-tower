@@ -325,7 +325,7 @@ it('creates the telemetry and logs files when they do not exist', function () {
 
 it('keeps the telemetry and logs when migrate:fresh resets the app database', function () {
     $this->upgrade->legacy()->seed();
-    $this->upgrade->migrate();
+    Artisan::call('migrate', ['--force' => true]);
     $before = $this->upgrade->snapshot(Databases::TELEMETRY, Databases::LOGS);
 
     DB::table('users')->update(['name' => 'changed']);
@@ -510,7 +510,7 @@ describe('never destroying data', function () {
 describe('resetting the app database', function () {
     it('keeps every telemetry and log row on migrate:refresh --step=1', function () {
         $this->upgrade->legacy()->seed();
-        $this->upgrade->migrate();
+        Artisan::call('migrate', ['--force' => true]);
         $before = $this->upgrade->snapshot(Databases::TELEMETRY, Databases::LOGS);
 
         expect(Artisan::call('migrate:refresh', ['--step' => 1, '--force' => true]))->toBe(0)

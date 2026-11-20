@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'correlation_id',
     'method',
     'uri',

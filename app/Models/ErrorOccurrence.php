@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Watch\Databases;
 use Database\Factories\ErrorOccurrenceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'trace_id',
     'error_group_id',
     'exception_class',
@@ -58,6 +60,29 @@ class ErrorOccurrence extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    /**
+     * @return BelongsTo<Environment, $this>
+     */
+    public function environment(): BelongsTo
+    {
+        return $this->belongsTo(Environment::class);
+    }
+
+    /**
+     * @param  Builder<self>  $occurrences
+     * @return list<array{environment: string|null, count: int}>
+     */
+    public static function countsByEnvironment(Builder $occurrences): array
+    {
+        return $occurrences
+            ->selectRaw('environment_id, COUNT(*) AS total')
+            ->groupBy('environment_id')
+            ->with('environment:id,name')
+            ->get()
+            ->map(fn (self $row) => ['environment' => $row->environment?->name, 'count' => (int) $row->total])
+            ->all();
     }
 
     /**

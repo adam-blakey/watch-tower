@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Environment;
 use App\Models\Organization;
 use App\Models\Project;
 use Illuminate\Database\Migrations\Migration;
@@ -14,6 +15,11 @@ use Illuminate\Support\Str;
 function hashApiKeysMigration(): Migration
 {
     return require glob(database_path('migrations/*_hash_project_api_keys.php'))[0];
+}
+
+function environmentsMigration(): Migration
+{
+    return require glob(database_path('migrations/*_create_environments_table.php'))[0];
 }
 
 /**
@@ -40,12 +46,15 @@ function insertLegacyProject(string $apiKey): string
 it('hashes keys that were stored in plain text and drops the plain-text columns', function () {
     Queue::fake();
     $migration = hashApiKeysMigration();
+    environmentsMigration()->down();
     $migration->down();
 
     $id = insertLegacyProject('pk_legacy_known_key');
     $migration->up();
 
     $row = DB::table('projects')->where('id', $id)->first();
+    environmentsMigration()->up();
+    restoreEnvironmentsDeletingAt();
 
     expect(Schema::hasColumn('projects', 'api_key'))->toBeFalse()
         ->and(Schema::hasColumn('projects', 'api_secret_hash'))->toBeFalse()
@@ -64,11 +73,12 @@ it('hashes keys that were stored in plain text and drops the plain-text columns'
         ->postJson('/api/ingest', ['events' => [['type' => 'request', 'data' => ['request_id' => 'req-1']]]])
         ->assertStatus(202);
 
-    expect(Project::findByApiKey('pk_legacy_known_key')?->id)->toBe($id);
+    expect(Environment::findByApiKey('pk_legacy_known_key')?->project_id)->toBe($id);
 });
 
 it('gives every project its own hash', function () {
     $migration = hashApiKeysMigration();
+    environmentsMigration()->down();
     $migration->down();
 
     $first = insertLegacyProject('pk_legacy_first');
@@ -83,6 +93,7 @@ it('restores plain-text columns with fresh keys when rolled back, since hashes c
     $migration = hashApiKeysMigration();
     $project = Project::factory()->withApiKey('pk_test_before_rollback')->create();
 
+    environmentsMigration()->down();
     $migration->down();
 
     $row = DB::table('projects')->where('id', $project->id)->first();
@@ -94,6 +105,8 @@ it('restores plain-text columns with fresh keys when rolled back, since hashes c
         ->and($row->api_secret_hash)->not->toBeEmpty();
 
     $migration->up();
+    environmentsMigration()->up();
+    restoreEnvironmentsDeletingAt();
 
     $this->withHeader('Authorization', 'Bearer pk_test_before_rollback')->postJson('/api/agent-auth')->assertUnauthorized();
     $this->withHeader('Authorization', 'Bearer '.$row->api_key)->postJson('/api/agent-auth')->assertOk();

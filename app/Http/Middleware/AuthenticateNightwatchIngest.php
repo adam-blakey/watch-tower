@@ -17,7 +17,7 @@ class AuthenticateNightwatchIngest
      *
      * A token records the version of the API key it was issued for and stops
      * working once that key has been rotated away (see
-     * `Project::acceptsApiKeyVersion()`).
+     * `Environment::acceptsApiKeyVersion()`).
      *
      * @param  Closure(Request): (Response)  $next
      */
@@ -49,12 +49,21 @@ class AuthenticateNightwatchIngest
             return $this->unauthorized('Unknown project');
         }
 
+        $environment = isset($payload['environment_id'])
+            ? $project->environments()->find($payload['environment_id'])
+            : $project->soleEnvironment();
+
+        if (! $environment) {
+            return $this->unauthorized('Unknown environment');
+        }
+
         $keyVersion = isset($payload['key_version']) ? (int) $payload['key_version'] : null;
 
-        if (! $project->acceptsApiKeyVersion($keyVersion)) {
+        if (! $environment->acceptsApiKeyVersion($keyVersion)) {
             return $this->unauthorized('Revoked ingest token');
         }
 
+        $request->attributes->set('watch_environment', $environment);
         $request->attributes->set('watch_project', $project);
 
         return $next($request);

@@ -122,12 +122,16 @@ class TelemetryPruner
      * @param  float|null  $deadline  `microtime(true)` after which no new chunk starts, or null for no limit
      * @return array{deleted: array<string, int>, finished: bool} rows deleted per table, and whether nothing is left
      */
-    public function purge(string $projectId, ?int $maxChunks = null, ?float $deadline = null): array
+    public function purge(string $projectId, ?int $maxChunks = null, ?float $deadline = null, ?string $environmentId = null): array
     {
         $deleted = [];
         $chunks = 0;
 
         foreach (self::purgeOrder() as $table) {
+            if ($environmentId !== null && ! isset(self::TIME_COLUMNS[$table])) {
+                continue;
+            }
+
             $deleted[$table] = 0;
 
             do {
@@ -135,7 +139,7 @@ class TelemetryPruner
                     return ['deleted' => $deleted, 'finished' => false];
                 }
 
-                [$selected, $removed] = $this->deleteChunk($table, $projectId);
+                [$selected, $removed] = $this->deleteChunk($table, $projectId, environmentId: $environmentId);
 
                 $deleted[$table] += $removed;
                 $chunks += $selected > 0 ? 1 : 0;
@@ -163,12 +167,13 @@ class TelemetryPruner
      *
      * @return array{int, int} rows selected, rows deleted
      */
-    private function deleteChunk(string $table, string $projectId, ?string $timeColumn = null, ?CarbonInterface $before = null): array
+    private function deleteChunk(string $table, string $projectId, ?string $timeColumn = null, ?CarbonInterface $before = null, ?string $environmentId = null): array
     {
         $connection = DB::connection(Databases::connectionFor($table));
 
         $ids = $connection->table($table)
             ->where('project_id', $projectId)
+            ->when($environmentId !== null, fn ($query) => $query->where('environment_id', $environmentId))
             ->when($timeColumn !== null, fn ($query) => $query->where($timeColumn, '<', $before))
             ->limit($this->chunkSize)
             ->pluck('id');

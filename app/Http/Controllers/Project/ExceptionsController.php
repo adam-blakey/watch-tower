@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ErrorGroup;
 use App\Models\ErrorOccurrence;
 use App\Models\Project;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\ExceptionStats;
 use App\Watch\Stats\TimeRange;
 use Illuminate\Http\Request;
@@ -17,13 +18,14 @@ class ExceptionsController extends Controller
     public function index(Project $project, Request $request, ExceptionStats $stats): Response
     {
         $range = TimeRange::fromLabel($request->string('range', '24h')->toString());
+        $environments = EnvironmentFilter::fromRequest($request, $project);
         $userId = $request->string('user_id')->toString() ?: null;
         $search = trim($request->string('search')->toString()) ?: null;
         $filter = $this->parseFilter($request->string('filter')->toString());
 
-        $summary = $stats->summary($project, $range, $userId, $filter);
-        $groups = $stats->groups($project, $range, $userId, $filter, $search);
-        $users = $stats->topUsers($project, $range);
+        $summary = $stats->summary($project, $range, $environments, $userId, $filter);
+        $groups = $stats->groups($project, $range, $environments, $userId, $filter, $search);
+        $users = $stats->topUsers($project, $range, $environments);
 
         return Inertia::render('projects/exceptions/index', [
             'summary' => $summary,
@@ -41,6 +43,7 @@ class ExceptionsController extends Controller
     public function show(Project $project, string $exception, Request $request, ExceptionStats $stats): Response
     {
         $range = TimeRange::fromLabel($request->string('range', '14d')->toString());
+        $environments = EnvironmentFilter::fromRequest($request, $project);
         $userId = $request->string('user_id')->toString() ?: null;
 
         /** @var ErrorGroup $group */
@@ -50,15 +53,17 @@ class ExceptionsController extends Controller
 
         /** @var ErrorOccurrence|null $latest */
         $latest = $group->occurrences()
+            ->tap($environments->apply(...))
             ->with('trace:id,method,uri')
             ->latest('occurred_at')
             ->first();
 
-        $detail = $stats->detail($project, $group);
-        $buckets = $stats->buckets($project, $range, $userId, null, $group->id);
-        $users = $stats->topUsers($project, $range);
+        $detail = $stats->detail($project, $group, $environments);
+        $buckets = $stats->buckets($project, $range, $environments, $userId, null, $group->id);
+        $users = $stats->topUsers($project, $range, $environments);
 
         $totalsInRange = $group->occurrences()
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->selectRaw('COUNT(*) AS total')
             ->selectRaw('SUM(CASE WHEN is_handled = 1 THEN 1 ELSE 0 END) AS handled')
@@ -66,6 +71,7 @@ class ExceptionsController extends Controller
             ->first();
 
         $occurrenceList = $group->occurrences()
+            ->tap($environments->apply(...))
             ->with('trace:id,method,uri,is_stub')
             ->latest('occurred_at')
             ->limit(50)

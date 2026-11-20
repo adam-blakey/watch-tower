@@ -2,8 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Environment;
 use App\Models\Project;
 use App\Watch\MaintenanceStatus;
+use App\Watch\Stats\EnvironmentFilter;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -47,6 +49,16 @@ class HandleInertiaRequests extends Middleware
                 'name' => $currentProject->name,
                 'environment' => $currentProject->organization?->plan ?? 'production',
                 'open_issues_count' => $currentProject->errorGroups()->where('status', 'unresolved')->count(),
+                'environments' => $currentProject->environments
+                    ->sortBy('name')
+                    ->map(fn (Environment $environment) => [
+                        'id' => $environment->id,
+                        'slug' => $environment->slug,
+                        'name' => $environment->name,
+                    ])
+                    ->values()
+                    ->all(),
+                'selected_environments' => EnvironmentFilter::fromRequest($request, $currentProject)->slugs,
             ] : null,
             'maintenanceProblems' => fn (): array => $user?->isSuperAdmin()
                 ? app(MaintenanceStatus::class)->problems()

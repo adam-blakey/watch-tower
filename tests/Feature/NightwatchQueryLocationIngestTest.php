@@ -7,6 +7,7 @@ use App\Models\ScheduledTaskRun;
 use App\Models\Trace;
 use App\Models\TraceQuery;
 use App\Models\User;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\QueryStats;
 use App\Watch\Stats\RequestStats;
 use App\Watch\Stats\TimeRange;
@@ -385,7 +386,7 @@ it('returns the most called location of each query from the stats', function () 
         locationIngestQuery($this->now, $traceId, ['sql' => 'select 1', 'file' => '', 'line' => 0, 'connection_type' => '']),
     );
 
-    $rows = collect((new QueryStats)->queries($this->project, $this->range))->keyBy('sql');
+    $rows = collect((new QueryStats)->queries($this->project, $this->range, new EnvironmentFilter))->keyBy('sql');
 
     expect($rows['select * from `orders` where `user_id` = ?']['location'])->toBe('app/Services/CheckoutService.php:12')
         ->and($rows['select * from `orders` where `user_id` = ?']['locations_count'])->toBe(2)
@@ -402,8 +403,8 @@ it('looks up locations for the statements of the requested page only', function 
     );
 
     $stats = new QueryStats;
-    $firstPage = $stats->paginatedQueries($this->project, $this->range, null, 'total_ms', 'desc', 1, 1);
-    $secondPage = $stats->paginatedQueries($this->project, $this->range, null, 'total_ms', 'desc', 2, 1);
+    $firstPage = $stats->paginatedQueries($this->project, $this->range, new EnvironmentFilter, null, 'total_ms', 'desc', 1, 1);
+    $secondPage = $stats->paginatedQueries($this->project, $this->range, new EnvironmentFilter, null, 'total_ms', 'desc', 2, 1);
 
     expect($firstPage->total())->toBe(2)
         ->and($firstPage->items()[0]['sql'])->toBe('select slow')
@@ -424,7 +425,7 @@ it('groups the calls of a query by file and line in the detail', function () {
         locationIngestQuery($this->now, $traceId, ['file' => '', 'line' => 0, 'connection_type' => '']),
     );
 
-    $detail = (new QueryStats)->queryDetail($this->project, $this->range, sha1($sql));
+    $detail = (new QueryStats)->queryDetail($this->project, $this->range, new EnvironmentFilter, sha1($sql));
 
     expect($detail['locations'])->toHaveCount(2)
         ->and($detail['locations_total'])->toBe(2)
@@ -452,7 +453,7 @@ it('lists at most 20 locations of a query and reports the total', function () {
 
     ($this->send)(...$records);
 
-    $detail = (new QueryStats)->queryDetail($this->project, $this->range, sha1('select * from `orders` where `user_id` = ?'));
+    $detail = (new QueryStats)->queryDetail($this->project, $this->range, new EnvironmentFilter, sha1('select * from `orders` where `user_id` = ?'));
 
     expect($detail['locations'])->toHaveCount(20)
         ->and($detail['locations_total'])->toBe(25);
@@ -486,7 +487,7 @@ it('renders the query pages with the location', function () {
 it('returns the counts of recent requests from the route detail', function () {
     ($this->send)(locationIngestRequest($this->now, (string) Str::uuid(), ['lazy_loads' => 5, 'hydrated_models' => 321]));
 
-    $detail = (new RequestStats)->routeDetail($this->project, $this->range, 'GET', '/orders/{order}');
+    $detail = (new RequestStats)->routeDetail($this->project, $this->range, new EnvironmentFilter, 'GET', '/orders/{order}');
 
     expect($detail['recent'][0]['lazy_loads'])->toBe(5)
         ->and($detail['recent'][0]['hydrated_models'])->toBe(321);

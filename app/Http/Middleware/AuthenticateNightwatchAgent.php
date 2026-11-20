@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Project;
+use App\Models\Environment;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -22,15 +22,16 @@ class AuthenticateNightwatchAgent
             return $this->unauthorized('Missing environment token');
         }
 
-        $project = Project::findByApiKey($token);
+        $environment = Environment::findByApiKey($token);
 
-        if (! $project) {
+        if (! $environment) {
             return $this->unauthorized('Invalid environment token');
         }
 
-        $project->recordApiKeyUse();
+        $environment->recordApiKeyUse();
 
-        $request->attributes->set('watch_project', $project);
+        $request->attributes->set('watch_environment', $environment);
+        $request->attributes->set('watch_project', $environment->project);
 
         return $next($request);
     }

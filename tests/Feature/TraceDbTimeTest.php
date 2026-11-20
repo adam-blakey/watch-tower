@@ -7,6 +7,7 @@ use App\Models\TraceQuery;
 use App\Watch\EventStore;
 use App\Watch\Fingerprinter;
 use App\Watch\Sampler;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\QueryStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -23,7 +24,7 @@ function storeDbTimeQuery(Project $project, string $correlationId, float $durati
     ($store ?? new EventStore(new Fingerprinter))->store($project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'select 1', 'duration_ms' => $durationMs],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 function storeDbTimeRequest(Project $project, string $correlationId, array $extra = []): void
@@ -31,7 +32,7 @@ function storeDbTimeRequest(Project $project, string $correlationId, array $extr
     (new EventStore(new Fingerprinter))->store($project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/example', 'status_code' => 200, 'db_queries_count' => 2, ...$extra],
-    ]);
+    ], $project->environments()->value('id'));
 }
 
 it('sums query durations into the trace whichever record arrives first', function (bool $queriesFirst) {
@@ -135,7 +136,7 @@ it('stores fractional query durations and the trace sum from a Nightwatch batch'
     ], $token)->assertOk();
 
     $durations = TraceQuery::orderBy('occurred_at')->get()->map(fn (TraceQuery $query): float => (float) $query->duration_ms)->all();
-    $summary = (new QueryStats)->summary($this->project, new TimeRange(CarbonImmutable::parse('2026-06-30', 'UTC'), CarbonImmutable::now()->addDay(), '30d'));
+    $summary = (new QueryStats)->summary($this->project, new TimeRange(CarbonImmutable::parse('2026-06-30', 'UTC'), CarbonImmutable::now()->addDay(), '30d'), new EnvironmentFilter);
 
     expect($durations)->toBe([1.25, 0.4])
         ->and(Trace::sole()->db_time_ms)->toEqualWithDelta(1.65, 0.0001)

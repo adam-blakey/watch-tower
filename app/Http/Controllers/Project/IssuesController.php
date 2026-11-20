@@ -7,6 +7,7 @@ use App\Models\ErrorGroup;
 use App\Models\ErrorOccurrence;
 use App\Models\IssueComment;
 use App\Models\Project;
+use App\Watch\Stats\EnvironmentFilter;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,6 +29,7 @@ class IssuesController extends Controller
 
     public function index(Project $project, Request $request): Response
     {
+        $environments = EnvironmentFilter::fromRequest($request, $project);
         $status = $request->string('status', 'open')->toString();
         $search = trim($request->string('search')->toString());
         $sort = $request->string('sort', 'last_seen')->toString();
@@ -41,9 +43,18 @@ class IssuesController extends Controller
 
         $query = $project->errorGroups()
             ->with('assignedTo:id,name,email')
-            ->withCount(['occurrences as users_count' => function ($q) {
-                $q->select(DB::raw('count(distinct user_identifier)'));
+            ->withCount(['occurrences as users_count' => function ($q) use ($environments) {
+                $q->select(DB::raw('count(distinct user_identifier)'))->tap($environments->apply(...));
             }]);
+
+        $countColumn = 'total_count';
+
+        if ($environments->ids !== []) {
+            $countColumn = 'environment_total_count';
+            $query
+                ->whereHas('occurrences', fn (Builder $q) => $environments->apply($q))
+                ->withCount(['occurrences as environment_total_count' => fn (Builder $q) => $environments->apply($q)]);
+        }
 
         $this->applyStatusFilter($query, $status, $userId);
 
@@ -55,7 +66,7 @@ class IssuesController extends Controller
             });
         }
 
-        $column = self::SORTABLE[$sort];
+        $column = $sort === 'count' ? $countColumn : self::SORTABLE[$sort];
         $query->orderBy($column, $direction);
         if ($sort !== 'last_seen') {
             $query->orderByDesc('last_occurrence_at');
@@ -63,7 +74,7 @@ class IssuesController extends Controller
 
         $groups = $query->paginate(25)->withQueryString();
 
-        $sparklines = $this->sparklines($project, $groups->pluck('id')->all());
+        $sparklines = $this->sparklines($project, $groups->pluck('id')->all(), $environments);
 
         $groups->through(fn (ErrorGroup $group) => [
             'id' => $group->id,
@@ -73,7 +84,7 @@ class IssuesController extends Controller
             'first_message' => $group->first_message,
             'first_file' => $group->first_file,
             'first_line' => $group->first_line,
-            'total_count' => $group->total_count,
+            'total_count' => (int) $group->{$countColumn},
             'users_count' => (int) ($group->users_count ?? 0),
             'first_occurrence_at' => $group->first_occurrence_at?->toIso8601String(),
             'last_occurrence_at' => $group->last_occurrence_at?->toIso8601String(),
@@ -88,7 +99,7 @@ class IssuesController extends Controller
             'sparkline' => $sparklines[$group->id] ?? [],
         ]);
 
-        $counts = $this->statusCounts($project, $userId);
+        $counts = $this->statusCounts($project, $userId, $environments);
 
         return Inertia::render('projects/issues/index', [
             'groups' => $groups,
@@ -102,8 +113,10 @@ class IssuesController extends Controller
         ]);
     }
 
-    public function show(Project $project, int $issue): Response
+    public function show(Project $project, int $issue, Request $request): Response
     {
+        $environments = EnvironmentFilter::fromRequest($request, $project);
+
         /** @var ErrorGroup $group */
         $group = $project->errorGroups()
             ->where('display_number', $issue)
@@ -112,26 +125,20 @@ class IssuesController extends Controller
 
         /** @var ErrorOccurrence|null $latest */
         $latest = $group->occurrences()
+            ->tap($environments->apply(...))
             ->with('trace:id,method,uri')
             ->latest('occurred_at')
             ->first();
 
         $usersCount = (int) $group->occurrences()
+            ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->distinct('user_identifier')
             ->count('user_identifier');
 
-        $environmentCounts = $group->occurrences()
-            ->select('environment', DB::raw('count(*) as total'))
-            ->groupBy('environment')
-            ->get()
-            ->map(fn ($row) => [
-                'environment' => $row->environment ?? 'unknown',
-                'count' => (int) $row->total,
-            ])
-            ->all();
+        $environmentCounts = ErrorOccurrence::countsByEnvironment($group->occurrences()->getQuery());
 
-        $sparkline = $this->sparklines($project, [$group->id])[$group->id] ?? [];
+        $sparkline = $this->sparklines($project, [$group->id], $environments)[$group->id] ?? [];
 
         $assignableUsers = $project->organization?->users()
             ->orderBy('name')
@@ -144,6 +151,7 @@ class IssuesController extends Controller
             ->all() ?? [];
 
         $occurrenceList = $group->occurrences()
+            ->tap($environments->apply(...))
             ->with('trace:id,method,uri,is_stub')
             ->latest('occurred_at')
             ->limit(50)
@@ -315,7 +323,7 @@ class IssuesController extends Controller
      * @param  list<string>  $groupIds
      * @return array<string, list<int>>
      */
-    private function sparklines(Project $project, array $groupIds): array
+    private function sparklines(Project $project, array $groupIds, EnvironmentFilter $environments): array
     {
         if ($groupIds === []) {
             return [];
@@ -326,6 +334,7 @@ class IssuesController extends Controller
 
         $rows = ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereIn('error_group_id', $groupIds)
             ->whereBetween('occurred_at', [$start, $end])
             ->selectRaw('error_group_id, DATE(occurred_at) as day, count(*) as total')
@@ -355,9 +364,13 @@ class IssuesController extends Controller
     /**
      * @return array<string, int>
      */
-    private function statusCounts(Project $project, ?int $userId): array
+    private function statusCounts(Project $project, ?int $userId, EnvironmentFilter $environments): array
     {
         $base = $project->errorGroups();
+
+        if ($environments->ids !== []) {
+            $base->whereHas('occurrences', fn (Builder $q) => $environments->apply($q));
+        }
 
         return [
             'open' => (clone $base)->where('status', 'unresolved')->count(),

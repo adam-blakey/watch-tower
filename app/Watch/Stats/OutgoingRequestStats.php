@@ -18,9 +18,9 @@ class OutgoingRequestStats
      *   buckets: list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null,'1xx':int,'2xx':int,'3xx':int,'4xx':int,'5xx':int,failed:int}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $host = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $host = null): array
     {
-        $base = $this->baseQuery($project, $range, $host);
+        $base = $this->baseQuery($project, $range, $environments, $host);
 
         $stats = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -36,7 +36,7 @@ class OutgoingRequestStats
             ->map(fn ($value) => (float) $value)
             ->all();
 
-        $statusTotals = $this->statusTotals($project, $range, $host);
+        $statusTotals = $this->statusTotals($project, $range, $environments, $host);
 
         return [
             'totals' => [
@@ -48,7 +48,7 @@ class OutgoingRequestStats
                 'p95_ms' => $this->percentile($durations, 0.95),
                 'status' => $statusTotals,
             ],
-            'buckets' => $this->buckets($project, $range, $host),
+            'buckets' => $this->buckets($project, $range, $environments, $host),
         ];
     }
 
@@ -58,6 +58,7 @@ class OutgoingRequestStats
     public function paginatedDomains(
         Project $project,
         TimeRange $range,
+        EnvironmentFilter $environments,
         ?string $search,
         ?string $sort,
         ?string $dir,
@@ -65,7 +66,7 @@ class OutgoingRequestStats
         int $perPage,
     ): LengthAwarePaginator {
         return StatsPaginator::paginate(
-            items: $this->domains($project, $range, $search),
+            items: $this->domains($project, $range, $environments, $search),
             sortable: [
                 'host' => 'string',
                 'count' => 'numeric',
@@ -88,9 +89,9 @@ class OutgoingRequestStats
     /**
      * @return list<array{host:string,hash:string,count:int,avg_ms:float|null,p95_ms:float|null,failed:int,'1xx':int,'2xx':int,'3xx':int,'4xx':int,'5xx':int}>
      */
-    public function domains(Project $project, TimeRange $range, ?string $search = null): array
+    public function domains(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search = null): array
     {
-        $base = $this->baseQuery($project, $range);
+        $base = $this->baseQuery($project, $range, $environments);
 
         if ($search !== null && $search !== '') {
             $base->where('host', 'like', '%'.$search.'%');
@@ -109,7 +110,7 @@ class OutgoingRequestStats
             ->groupBy('host')
             ->get();
 
-        $durationsByHost = $this->durationsByHost($project, $range, $search);
+        $durationsByHost = $this->durationsByHost($project, $range, $environments, $search);
 
         return $rows
             ->map(function ($row) use ($durationsByHost) {
@@ -143,10 +144,11 @@ class OutgoingRequestStats
      *   requests: list<array{id:string,method:string,url:string,status_code:int|null,duration_ms:int|null,source_type:string|null,source_label:string|null,occurred_at:string|null}>
      * }|null
      */
-    public function domainDetail(Project $project, TimeRange $range, string $hash): ?array
+    public function domainDetail(Project $project, TimeRange $range, EnvironmentFilter $environments, string $hash): ?array
     {
         $host = OutgoingRequest::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->select('host')
             ->get()
@@ -158,10 +160,11 @@ class OutgoingRequestStats
             return null;
         }
 
-        $summary = $this->summary($project, $range, $host);
+        $summary = $this->summary($project, $range, $environments, $host);
 
         $requests = OutgoingRequest::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->where('host', $host)
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->orderByDesc('occurred_at')
@@ -200,10 +203,11 @@ class OutgoingRequestStats
     /**
      * @return Builder<OutgoingRequest>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $host = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $host = null): Builder
     {
         $query = OutgoingRequest::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($host !== null) {
@@ -216,9 +220,9 @@ class OutgoingRequestStats
     /**
      * @return array<string,int>
      */
-    private function statusTotals(Project $project, TimeRange $range, ?string $host = null): array
+    private function statusTotals(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $host = null): array
     {
-        $row = $this->baseQuery($project, $range, $host)
+        $row = $this->baseQuery($project, $range, $environments, $host)
             ->selectRaw('SUM(CASE WHEN status_code IS NULL THEN 1 ELSE 0 END) AS failed_count')
             ->selectRaw('SUM(CASE WHEN status_code BETWEEN 100 AND 199 THEN 1 ELSE 0 END) AS s1xx')
             ->selectRaw('SUM(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1 ELSE 0 END) AS s2xx')
@@ -240,13 +244,13 @@ class OutgoingRequestStats
     /**
      * @return list<array{bucket:string,count:int,avg_duration:float|null,p95_duration:float|null,'1xx':int,'2xx':int,'3xx':int,'4xx':int,'5xx':int,failed:int}>
      */
-    private function buckets(Project $project, TimeRange $range, ?string $host = null): array
+    private function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $host = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $host)
+        $rows = $this->baseQuery($project, $range, $environments, $host)
             ->orderBy('occurred_at')
             ->get(['status_code', 'duration_ms', 'occurred_at']);
 
@@ -324,9 +328,9 @@ class OutgoingRequestStats
     /**
      * @return array<string, list<float>>
      */
-    private function durationsByHost(Project $project, TimeRange $range, ?string $search): array
+    private function durationsByHost(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $search): array
     {
-        $query = $this->baseQuery($project, $range)->whereNotNull('duration_ms');
+        $query = $this->baseQuery($project, $range, $environments)->whereNotNull('duration_ms');
 
         if ($search !== null && $search !== '') {
             $query->where('host', 'like', '%'.$search.'%');

@@ -16,9 +16,9 @@ class ExceptionStats
      *   buckets: list<array{bucket:string, handled:int, unhandled:int}>
      * }
      */
-    public function summary(Project $project, TimeRange $range, ?string $userId = null, ?bool $handled = null): array
+    public function summary(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId = null, ?bool $handled = null): array
     {
-        $base = $this->baseQuery($project, $range, $userId, $handled);
+        $base = $this->baseQuery($project, $range, $environments, $userId, $handled);
 
         $totals = (clone $base)
             ->selectRaw('COUNT(*) AS total')
@@ -32,7 +32,7 @@ class ExceptionStats
                 'handled' => (int) ($totals?->handled ?? 0),
                 'unhandled' => (int) ($totals?->unhandled ?? 0),
             ],
-            'buckets' => $this->buckets($project, $range, $userId, $handled),
+            'buckets' => $this->buckets($project, $range, $environments, $userId, $handled),
         ];
     }
 
@@ -48,10 +48,11 @@ class ExceptionStats
      *   is_handled:bool
      * }>
      */
-    public function groups(Project $project, TimeRange $range, ?string $userId = null, ?bool $handled = null, ?string $search = null): array
+    public function groups(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId = null, ?bool $handled = null, ?string $search = null): array
     {
         $occurrenceCounts = ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->when($userId !== null && $userId !== '', fn (Builder $q) => $q->where('user_identifier', $userId))
             ->when($handled !== null, fn (Builder $q) => $q->where('is_handled', $handled))
@@ -121,7 +122,7 @@ class ExceptionStats
      *   occurrences: array{day:int, week:int, month:int}
      * }
      */
-    public function detail(Project $project, ErrorGroup $group): array
+    public function detail(Project $project, ErrorGroup $group, EnvironmentFilter $environments): array
     {
         $now = CarbonImmutable::now();
 
@@ -129,20 +130,14 @@ class ExceptionStats
             ->where('error_occurrences.project_id', $project->id)
             ->where('error_occurrences.error_group_id', $group->id);
 
+        $environmentCounts = ErrorOccurrence::countsByEnvironment(clone $base);
+
+        $environments->apply($base, 'error_occurrences.environment_id');
+
         $impactedUsers = (int) (clone $base)
             ->whereNotNull('user_identifier')
             ->distinct('user_identifier')
             ->count('user_identifier');
-
-        $environments = (clone $base)
-            ->selectRaw('environment, COUNT(*) AS total')
-            ->groupBy('environment')
-            ->get()
-            ->map(fn ($row) => [
-                'environment' => $row->environment ?? 'unknown',
-                'count' => (int) $row->total,
-            ])
-            ->all();
 
         $traceServers = (clone $base)
             ->join('traces', 'error_occurrences.trace_id', '=', 'traces.id')
@@ -186,7 +181,7 @@ class ExceptionStats
             'impacted_users' => $impactedUsers,
             'servers' => $servers,
             'first_release' => $firstRelease,
-            'environments' => $environments,
+            'environments' => $environmentCounts,
             'occurrences' => [
                 'day' => $day,
                 'week' => $week,
@@ -223,10 +218,11 @@ class ExceptionStats
     /**
      * @return Builder<ErrorOccurrence>
      */
-    private function baseQuery(Project $project, TimeRange $range, ?string $userId, ?bool $handled, ?string $groupId = null): Builder
+    private function baseQuery(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId, ?bool $handled, ?string $groupId = null): Builder
     {
         $query = ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         if ($userId !== null && $userId !== '') {
@@ -247,13 +243,13 @@ class ExceptionStats
     /**
      * @return list<array{bucket:string, handled:int, unhandled:int}>
      */
-    public function buckets(Project $project, TimeRange $range, ?string $userId = null, ?bool $handled = null, ?string $groupId = null): array
+    public function buckets(Project $project, TimeRange $range, EnvironmentFilter $environments, ?string $userId = null, ?bool $handled = null, ?string $groupId = null): array
     {
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
         $bucketSeconds = max(1, intdiv($totalSeconds, $bucketCount));
 
-        $rows = $this->baseQuery($project, $range, $userId, $handled, $groupId)
+        $rows = $this->baseQuery($project, $range, $environments, $userId, $handled, $groupId)
             ->orderBy('occurred_at')
             ->get(['is_handled', 'occurred_at']);
 
@@ -284,10 +280,11 @@ class ExceptionStats
     /**
      * @return list<array{id:string,email:string|null,count:int}>
      */
-    public function topUsers(Project $project, TimeRange $range, int $limit = 30): array
+    public function topUsers(Project $project, TimeRange $range, EnvironmentFilter $environments, int $limit = 30): array
     {
         return ErrorOccurrence::query()
             ->where('project_id', $project->id)
+            ->tap($environments->apply(...))
             ->whereBetween('occurred_at', [$range->from, $range->to])
             ->whereNotNull('user_identifier')
             ->selectRaw('user_identifier AS id, MAX(user_email) AS email, COUNT(*) AS count')

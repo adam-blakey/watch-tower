@@ -1,9 +1,17 @@
-import { Link, router } from '@inertiajs/react';
-import { ChevronRight } from 'lucide-react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { ChevronDown, ChevronRight, Layers } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { SharedProps } from '@/types/inertia';
 
 type Crumb = {
     label: string;
@@ -57,6 +65,7 @@ export function PageHeader({
                 </h1>
 
                 <div className="flex items-center gap-3">
+                    <EnvironmentPicker />
                     {selectedRange ? (
                         <RangeTabs
                             value={selectedRange}
@@ -112,5 +121,64 @@ function RangeTabs({
                 ))}
             </TabsList>
         </Tabs>
+    );
+}
+
+function EnvironmentPicker() {
+    const project = usePage<SharedProps>().props.currentProject;
+
+    if (!project || project.environments.length < 2) {
+        return null;
+    }
+
+    const selected = project.selected_environments;
+    const label =
+        selected.length === 0
+            ? 'All environments'
+            : project.environments
+                  .filter((environment) => selected.includes(environment.slug))
+                  .map((environment) => environment.name)
+                  .join(', ');
+
+    const toggle = (slug: string, checked: boolean) => {
+        const next = checked
+            ? [...selected, slug]
+            : selected.filter((current) => current !== slug);
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete('env[]');
+        url.searchParams.delete('page');
+        next.forEach((current) => url.searchParams.append('env[]', current));
+        router.visit(url.pathname + url.search, { preserveScroll: true });
+    };
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 max-w-56 gap-1.5 text-xs"
+                >
+                    <Layers className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{label}</span>
+                    <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+                {project.environments.map((environment) => (
+                    <DropdownMenuCheckboxItem
+                        key={environment.id}
+                        checked={selected.includes(environment.slug)}
+                        onSelect={(event) => event.preventDefault()}
+                        onCheckedChange={(checked) =>
+                            toggle(environment.slug, checked)
+                        }
+                    >
+                        {environment.name}
+                    </DropdownMenuCheckboxItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
     );
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessWatchEvent;
+use App\Models\Environment;
 use App\Models\Project;
 use App\Watch\NightwatchTranslator;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,8 @@ class NightwatchIngestController extends Controller
     {
         /** @var Project $project */
         $project = $request->attributes->get('watch_project');
+        /** @var Environment $environment */
+        $environment = $request->attributes->get('watch_environment');
 
         $body = $this->readBody($request);
 
@@ -65,7 +68,7 @@ class NightwatchIngestController extends Controller
                 continue;
             }
 
-            ProcessWatchEvent::dispatch($project->id, $event);
+            ProcessWatchEvent::dispatch($project->id, $event, $environment->id);
             $queued++;
         }
 

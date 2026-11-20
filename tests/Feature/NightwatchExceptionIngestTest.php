@@ -7,6 +7,7 @@ use App\Models\Trace;
 use App\Models\User;
 use App\Watch\EventStore;
 use App\Watch\Fingerprinter;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\ExceptionStats;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
@@ -131,6 +132,7 @@ it('counts handled and unhandled occurrences separately in the summary', functio
             CarbonImmutable::createFromTimestamp($this->base + 60),
             'custom',
         ),
+        new EnvironmentFilter,
     );
 
     expect($summary['totals'])->toBe(['total' => 2, 'handled' => 1, 'unhandled' => 1]);
@@ -143,7 +145,7 @@ it('lists versions newest first, servers from occurrences and the oldest release
         nightwatchExceptionIngestRecord($this->base + 60, ['deploy' => 'v10.0.0', 'server' => 'web-2', 'php_version' => '8.4.0', 'laravel_version' => '12.1.0']),
     ], $this->token)->assertOk();
 
-    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project));
+    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project), new EnvironmentFilter);
 
     expect($detail['php_versions'])->toBe(['8.4.1', '8.4.0', '8.4.2'])
         ->and($detail['laravel_versions'])->toBe(['12.35.1', '12.1.0', '12.36.0'])
@@ -162,7 +164,7 @@ it('merges the hostname of the request with the hostname of the occurrence', fun
         nightwatchExceptionIngestRecord($this->base, ['trace_id' => 'trace-1', 'server' => 'web-1']),
     ], $this->token)->assertOk();
 
-    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project));
+    $detail = app(ExceptionStats::class)->detail($this->project, nightwatchExceptionGroup($this->project), new EnvironmentFilter);
 
     expect($detail['servers'])->toEqualCanonicalizing(['web-1', 'web-9']);
 });
@@ -182,7 +184,7 @@ it('falls back to the versions of the group and has no release for older occurre
         'hostname' => null,
     ]);
 
-    $detail = app(ExceptionStats::class)->detail($this->project, $group);
+    $detail = app(ExceptionStats::class)->detail($this->project, $group, new EnvironmentFilter);
 
     expect($detail['php_versions'])->toBe(['8.3.0'])
         ->and($detail['laravel_versions'])->toBe(['11.0.0'])
@@ -266,7 +268,7 @@ it('stores the handled flag of a legacy event given as handled or is_handled', f
             'occurred_at' => '2026-03-01T10:00:00Z',
             ...$flag,
         ],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole()->is_handled)->toBeTrue()
         ->and(nightwatchExceptionGroup($this->project)->is_handled)->toBeTrue();
@@ -279,7 +281,7 @@ it('stores a legacy event without a flag as unhandled', function () {
     (new EventStore(new Fingerprinter))->store($this->project, [
         'type' => 'exception',
         'data' => ['class' => 'RuntimeException', 'occurred_at' => '2026-03-01T10:00:00Z'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole())
         ->is_handled->toBeFalse()
@@ -313,7 +315,7 @@ it('marks the trace as having errors and rolls that back with the occurrence', f
             'class' => 'RuntimeException',
             'occurred_at' => '2026-07-01T10:15:00Z',
         ],
-    ]))->toThrow(RuntimeException::class, 'insert failed');
+    ], $this->project->environments()->value('id')))->toThrow(RuntimeException::class, 'insert failed');
 
     expect($trace->refresh()->has_errors)->toBeFalse()
         ->and(ErrorOccurrence::count())->toBe(0)

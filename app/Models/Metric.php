@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'period_start',
     'period_end',
     'aggregation_level',

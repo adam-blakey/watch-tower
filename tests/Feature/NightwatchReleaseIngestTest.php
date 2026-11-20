@@ -5,6 +5,7 @@ use App\Models\Project;
 use App\Models\QueueJobRun;
 use App\Models\Trace;
 use App\Watch\Stats\CacheStats;
+use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\TimeRange;
 use Carbon\CarbonImmutable;
 
@@ -110,7 +111,7 @@ it('stores a failed cache write and delete as failed operations that the cache f
     expect($events->pluck('operation')->all())->toBe(['write', 'delete', 'write'])
         ->and($events->pluck('succeeded')->all())->toBe([false, false, true]);
 
-    $failures = (new CacheStats)->failures($this->project, TimeRange::fromLabel('1h'));
+    $failures = (new CacheStats)->failures($this->project, TimeRange::fromLabel('1h'), new EnvironmentFilter);
 
     expect($failures['totals'])->toBe(['write' => 1, 'delete' => 1, 'total' => 2]);
 });

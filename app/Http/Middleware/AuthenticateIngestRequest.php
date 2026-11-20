@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\Project;
+use App\Models\Environment;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,15 +24,16 @@ class AuthenticateIngestRequest
             ], 401);
         }
 
-        $project = Project::findByApiKey($apiKey);
+        $environment = Environment::findByApiKey($apiKey);
 
-        if (! $project) {
+        if (! $environment) {
             return response()->json(['error' => 'Invalid API key.'], 401);
         }
 
-        $project->recordApiKeyUse();
+        $environment->recordApiKeyUse();
 
-        $request->attributes->set('watch_project', $project);
+        $request->attributes->set('watch_environment', $environment);
+        $request->attributes->set('watch_project', $environment->project);
 
         return $next($request);
     }

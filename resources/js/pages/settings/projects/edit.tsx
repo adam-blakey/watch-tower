@@ -1,11 +1,16 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 
+import { useState } from 'react';
 import ProjectAdminController from '@/actions/App/Http/Controllers/Settings/ProjectAdminController';
+import { EnvironmentsSection } from '@/components/environments-section';
+import type { Environment } from '@/components/environments-section';
+import { NewKeyPanel } from '@/components/new-api-key-panel';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { SettingsShell } from '@/layouts/settings-shell';
+import type { SharedProps } from '@/types/inertia';
 
 type AdminOption = { id: number; name: string; email: string };
 
@@ -22,10 +27,20 @@ type Project = {
 type Props = {
     project: Project;
     admins: AdminOption[];
+    environments: Environment[];
 };
 
-export default function ProjectEdit({ project, admins }: Props) {
+export default function ProjectEdit({ project, admins, environments }: Props) {
     const assignedSet = new Set(project.admin_ids);
+    const { props, flash } = usePage<
+        SharedProps & { flash?: { success?: string } }
+    >();
+    const flashedApiKey = flash.new_api_key ?? null;
+    const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+    const newApiKey =
+        flashedApiKey && flashedApiKey.key !== dismissedKey
+            ? flashedApiKey
+            : null;
 
     return (
         <SettingsShell>
@@ -47,6 +62,17 @@ export default function ProjectEdit({ project, admins }: Props) {
             </div>
 
             <div className="mx-auto w-full max-w-3xl px-8 py-8">
+                {props.flash?.success && (
+                    <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        {props.flash.success}
+                    </div>
+                )}
+                {newApiKey && (
+                    <NewKeyPanel
+                        apiKey={newApiKey}
+                        onDismiss={() => setDismissedKey(newApiKey.key)}
+                    />
+                )}
                 <Form
                     {...ProjectAdminController.update.form({
                         project: project.slug,
@@ -209,6 +235,11 @@ export default function ProjectEdit({ project, admins }: Props) {
                         </>
                     )}
                 </Form>
+
+                <EnvironmentsSection
+                    projectSlug={project.slug}
+                    environments={environments}
+                />
             </div>
         </SettingsShell>
     );

@@ -13,6 +13,7 @@ use Illuminate\Database\Query\Expression;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'trace_id',
     'level',
     'message',

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Environment;
 use App\Models\Organization;
 use App\Models\Project;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -21,10 +22,16 @@ class ProjectFactory extends Factory
             'name' => Str::title($name),
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(5)),
             'description' => fake()->sentence(),
-            ...Project::apiKeyAttributes('pk_test_'.Str::random(40)),
             'sampling_rate' => 1.0,
             'retention_days' => 30,
         ];
+    }
+
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Project $project): void {
+            Environment::factory()->for($project)->create(['name' => Environment::DEFAULT_NAME, 'slug' => Environment::DEFAULT_SLUG]);
+        });
     }
 
     /**
@@ -33,6 +40,8 @@ class ProjectFactory extends Factory
      */
     public function withApiKey(string $key): static
     {
-        return $this->state(fn () => Project::apiKeyAttributes($key));
+        return $this->afterCreating(function (Project $project) use ($key): void {
+            $project->environments()->sole()->forceFill(Environment::apiKeyAttributes($key))->save();
+        });
     }
 }

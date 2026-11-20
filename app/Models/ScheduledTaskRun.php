@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'project_id',
+    'environment_id',
     'task',
     'task_hash',
     'lazy_loads',
