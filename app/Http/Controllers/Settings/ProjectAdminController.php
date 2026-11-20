@@ -131,12 +131,11 @@ class ProjectAdminController extends Controller
         $this->flashNewApiKeyToPage($request);
 
         return Inertia::render('settings/projects/edit', [
-            'environments' => $project->environments()->orderByDesc('is_default')->orderBy('name')->get()
+            'environments' => $project->environments()->orderBy('name')->get()
                 ->map(fn (Environment $environment) => [
                     'id' => $environment->id,
                     'name' => $environment->name,
                     'slug' => $environment->slug,
-                    'is_default' => $environment->is_default,
                     'api_key_prefix' => $environment->api_key_prefix,
                     'api_key_last_used_at' => $environment->api_key_last_used_at?->toISOString(),
                     'previous_api_key_expires_at' => $environment->hasActivePreviousApiKey()

@@ -35,7 +35,7 @@ class DeleteEnvironmentData implements ShouldQueue
     {
         $environment = Environment::withoutGlobalScope('notDeleting')->find($this->environmentId);
 
-        if (! $environment || $environment->deleting_at === null || $environment->is_default) {
+        if (! $environment || $environment->deleting_at === null) {
             return;
         }
 

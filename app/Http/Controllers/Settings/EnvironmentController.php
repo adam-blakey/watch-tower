@@ -23,13 +23,11 @@ class EnvironmentController extends Controller
             'slug' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9-]+$/', Rule::unique('environments', 'slug')->where('project_id', $project->id)],
         ]);
 
-        $environment = $project->environments()->make($validated);
-        $apiKey = $environment->issueApiKey();
-        $environment->save();
+        $apiKey = $project->createEnvironment($validated['name'], $validated['slug']);
 
         return $this->backToProject($project)
-            ->with('success', "Environment '{$environment->name}' created.")
-            ->with('new_api_key', $this->newApiKeyFlash("{$project->name} ({$environment->name})", $apiKey));
+            ->with('success', "Environment '{$validated['name']}' created.")
+            ->with('new_api_key', $this->newApiKeyFlash("{$project->name} ({$validated['name']})", $apiKey));
     }
 
     public function update(Request $request, Project $project, Environment $environment): RedirectResponse
@@ -54,9 +52,9 @@ class EnvironmentController extends Controller
 
     public function destroy(Project $project, Environment $environment): RedirectResponse
     {
-        if ($environment->is_default) {
+        if ($project->environments()->count() === 1) {
             throw ValidationException::withMessages([
-                'environment' => 'The default environment cannot be deleted.',
+                'environment' => 'A project needs at least one environment.',
             ]);
         }
 

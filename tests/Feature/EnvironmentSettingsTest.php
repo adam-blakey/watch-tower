@@ -26,12 +26,12 @@ function environmentRoute(string $action, Project $project, ?Environment $enviro
     return route("settings.projects.environments.{$action}", array_filter([$project->slug, $environment?->id]));
 }
 
-it('lists the environments on the edit page, default first, without full keys', function () {
+it('lists the environments on the edit page by name, without full keys', function () {
     $response = $this->actingAs($this->admin)->get(route('settings.projects.edit', $this->project->slug));
 
     $response->assertInertia(fn (AssertableInertia $page) => $page
         ->has('environments', 2)
-        ->where('environments.0.is_default', true)
+        ->where('environments.0.slug', 'production')
         ->where('environments.1.slug', 'staging')
         ->where('environments.1.api_key_prefix', 'pk_test_st'));
 
@@ -47,8 +47,7 @@ it('creates an environment and shows its key once', function () {
     $response = $this->get(route('settings.projects.edit', $this->project->slug));
     $shown = $response->inertiaPage()['flash']['new_api_key'];
 
-    expect($created->is_default)->toBeFalse()
-        ->and($shown['project'])->toBe("{$this->project->name} (QA)")
+    expect($shown['project'])->toBe("{$this->project->name} (QA)")
         ->and(Environment::findByApiKey($shown['key'])?->id)->toBe($created->id)
         ->and(json_encode($response->inertiaPage()['props']))->not->toContain($shown['key']);
 
@@ -92,8 +91,8 @@ it('rotates one environment key without touching the others', function () {
         ->assertSessionHas('new_api_key');
 
     expect(Environment::findByApiKey('pk_test_staging'))->toBeNull()
-        ->and(Environment::findByApiKey('pk_test_production')?->id)->toBe($this->project->defaultEnvironment->id)
-        ->and($this->project->defaultEnvironment->fresh()->api_key_version)->toBe(1)
+        ->and(Environment::findByApiKey('pk_test_production')?->id)->toBe($this->project->environments()->firstWhere('slug', 'production')->id)
+        ->and($this->project->environments()->firstWhere('slug', 'production')->fresh()->api_key_version)->toBe(1)
         ->and($this->staging->fresh()->api_key_version)->toBe(2);
 });
 
@@ -125,15 +124,16 @@ it('lets only super admins manage environments', function () {
     Bus::assertNotDispatched(DeleteEnvironmentData::class);
 });
 
-it('refuses to delete the default environment', function () {
+it('refuses to delete the last environment of a project', function () {
     Bus::fake();
+    $this->staging->delete();
 
     $this->actingAs($this->admin)
-        ->delete(environmentRoute('destroy', $this->project, $this->project->defaultEnvironment))
+        ->delete(environmentRoute('destroy', $this->project, $this->project->environments()->sole()))
         ->assertSessionHasErrors('environment');
 
     Bus::assertNotDispatched(DeleteEnvironmentData::class);
-    expect($this->project->environments()->count())->toBe(2);
+    expect($this->project->environments()->count())->toBe(1);
 });
 
 it('hides a deleted environment at once and queues its data deletion', function () {
@@ -155,7 +155,7 @@ it('deletes only the rows of the deleted environment, then the environment', fun
     $other = Environment::factory()->create(['project_id' => $this->project->id]);
     $tables = array_keys(TelemetryPruner::TIME_COLUMNS);
 
-    foreach ([$this->staging->id, $other->id, null] as $environmentId) {
+    foreach ([$this->staging->id, $other->id] as $environmentId) {
         seedTelemetry($this->project, now());
 
         foreach ($tables as $table) {
@@ -169,23 +169,18 @@ it('deletes only the rows of the deleted environment, then the environment', fun
 
     foreach ($tables as $table) {
         expect(dbTable($table)->where('environment_id', $this->staging->id)->count())->toBe(0, "{$table} staging")
-            ->and(dbTable($table)->where('environment_id', $other->id)->count())->toBeGreaterThan(0, "{$table} other")
-            ->and(dbTable($table)->whereNull('environment_id')->count())->toBeGreaterThan(0, "{$table} null");
+            ->and(dbTable($table)->where('environment_id', $other->id)->count())->toBeGreaterThan(0, "{$table} other");
     }
 
     expect(Environment::withoutGlobalScope('notDeleting')->find($this->staging->id))->toBeNull()
-        ->and(dbTable('error_groups')->count())->toBe(3);
+        ->and(dbTable('error_groups')->count())->toBe(2);
 });
 
-it('never deletes a live or default environment', function () {
+it('never deletes a live environment', function () {
     seedTelemetry($this->project, now());
     dbTable('traces')->update(['environment_id' => $this->staging->id]);
 
     DeleteEnvironmentData::dispatchSync($this->staging->id);
-
-    $default = $this->project->defaultEnvironment;
-    $default->forceFill(['deleting_at' => now()])->save();
-    DeleteEnvironmentData::dispatchSync($default->id);
 
     expect(Environment::withoutGlobalScope('notDeleting')->count())->toBe(2)
         ->and(dbTable('traces')->where('environment_id', $this->staging->id)->count())->toBe(1);

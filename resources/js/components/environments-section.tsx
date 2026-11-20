@@ -10,7 +10,6 @@ export type Environment = {
     id: string;
     name: string;
     slug: string;
-    is_default: boolean;
     api_key_prefix: string | null;
     api_key_last_used_at: string | null;
     previous_api_key_expires_at: string | null;
@@ -145,11 +144,6 @@ export function EnvironmentsSection({
                                     <span className="font-mono text-xs font-normal text-muted-foreground">
                                         {environment.slug}
                                     </span>
-                                    {environment.is_default && (
-                                        <span className="rounded-md border border-border px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
-                                            Default
-                                        </span>
-                                    )}
                                 </div>
                             )}
                             <div className="mt-1 text-xs text-muted-foreground">
@@ -192,7 +186,7 @@ export function EnvironmentsSection({
                             >
                                 <KeyRound className="h-3.5 w-3.5" />
                             </Button>
-                            {!environment.is_default && (
+                            {environments.length > 1 && (
                                 <Button
                                     variant="ghost"
                                     size="sm"

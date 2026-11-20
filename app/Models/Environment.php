@@ -51,7 +51,6 @@ class Environment extends Model
     {
         return [
             'deleting_at' => 'datetime',
-            'is_default' => 'boolean',
             'api_key_version' => 'integer',
             'previous_api_key_expires_at' => 'datetime',
             'api_key_last_used_at' => 'datetime',
