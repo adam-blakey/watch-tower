@@ -10,7 +10,6 @@ export type EnvironmentSummary = {
     id: string;
     slug: string;
     name: string;
-    is_default: boolean;
 };
 
 export type CurrentProject = ProjectSummary & {
@@ -39,6 +38,7 @@ export type LastPrune = {
 
 export type SharedProps = {
     name: string;
+    icon: string | null;
     auth: { user: User | null };
     currentProject: CurrentProject | null;
     projects: ProjectSummary[];

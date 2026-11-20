@@ -16,7 +16,6 @@ final class EnvironmentFilter
     public function __construct(
         public readonly array $ids = [],
         public readonly array $slugs = [],
-        private readonly bool $includesDefault = false,
     ) {}
 
     public static function fromRequest(Request $request, Project $project): self
@@ -26,7 +25,6 @@ final class EnvironmentFilter
         return new self(
             $selected->pluck('id')->all(),
             $selected->pluck('slug')->all(),
-            $selected->contains('is_default', true),
         );
     }
 
@@ -38,16 +36,6 @@ final class EnvironmentFilter
      */
     public function apply(Builder|QueryBuilder $query, string $column = 'environment_id'): Builder|QueryBuilder
     {
-        if ($this->ids === []) {
-            return $query;
-        }
-
-        return $query->where(function (Builder|QueryBuilder $nested) use ($column): void {
-            $nested->whereIn($column, $this->ids);
-
-            if ($this->includesDefault) {
-                $nested->orWhereNull($column);
-            }
-        });
+        return $this->ids === [] ? $query : $query->whereIn($column, $this->ids);
     }
 }

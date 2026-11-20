@@ -14,9 +14,6 @@ return new class extends Migration
                 foreach ($rows as $row) {
                     $value = json_decode($row->stacktrace, true);
 
-                    // If the column held a JSON string (double-encoded), $value
-                    // will itself be a string of JSON. Decode once more to lift
-                    // it back into an array.
                     if (is_string($value)) {
                         $inner = json_decode($value, true);
 

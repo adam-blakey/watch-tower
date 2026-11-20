@@ -30,7 +30,7 @@ class ProjectFactory extends Factory
     public function configure(): static
     {
         return $this->afterCreating(function (Project $project): void {
-            Environment::factory()->for($project)->default()->create();
+            Environment::factory()->for($project)->create(['name' => Environment::DEFAULT_NAME, 'slug' => Environment::DEFAULT_SLUG]);
         });
     }
 
@@ -41,7 +41,7 @@ class ProjectFactory extends Factory
     public function withApiKey(string $key): static
     {
         return $this->afterCreating(function (Project $project) use ($key): void {
-            $project->defaultEnvironment->forceFill(Environment::apiKeyAttributes($key))->save();
+            $project->environments()->sole()->forceFill(Environment::apiKeyAttributes($key))->save();
         });
     }
 }

@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
   pull_request:
 
-# A newer push to the same PR cancels the run in progress.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

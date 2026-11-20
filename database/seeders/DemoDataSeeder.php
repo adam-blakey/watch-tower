@@ -26,6 +26,8 @@ use Illuminate\Support\Str;
 
 class DemoDataSeeder extends Seeder
 {
+    private ?string $environmentId = null;
+
     public function run(): void
     {
         $organization = Organization::query()->firstOrCreate(
@@ -51,6 +53,7 @@ class DemoDataSeeder extends Seeder
         ))->all();
 
         $project = $this->ensureDemoProject($organization);
+        $this->environmentId = $project->environments()->value('id');
 
         $this->command?->info("Seeding traces for project: {$project->name}");
 
@@ -119,6 +122,7 @@ class DemoDataSeeder extends Seeder
             $traces[] = [
                 'id' => (string) Str::uuid(),
                 'project_id' => $project->id,
+                'environment_id' => $this->environmentId,
                 'correlation_id' => (string) Str::uuid(),
                 'method' => $method,
                 'uri' => $uri,
@@ -250,7 +254,7 @@ class DemoDataSeeder extends Seeder
             'retention_days' => 30,
         ]);
         $project->save();
-        $apiKey = $project->createDefaultEnvironment();
+        $apiKey = $project->createEnvironment();
 
         $this->command?->info("Demo API key for {$project->name} (only its hash is stored, copy it now): {$apiKey}");
 
@@ -454,6 +458,7 @@ class DemoDataSeeder extends Seeder
             $errorRows[] = [
                 'id' => (string) Str::uuid(),
                 'project_id' => $project->id,
+                'environment_id' => $this->environmentId,
                 'trace_id' => $trace['id'] ?? null,
                 'error_group_id' => $groups[$fingerprint]['id'],
                 'exception_class' => $tpl['class'],
@@ -569,6 +574,7 @@ class DemoDataSeeder extends Seeder
                 $rows[] = [
                     'id' => (string) Str::uuid(),
                     'project_id' => $project->id,
+                    'environment_id' => $this->environmentId,
                     'trace_id' => $trace['id'],
                     'query_type' => $template['type'],
                     'sql' => $template['sql'],
@@ -593,7 +599,6 @@ class DemoDataSeeder extends Seeder
             }
         }
 
-        // Filler queries to populate the long tail (low-weight templates picked at random).
         $filler = max(0, 800 - count($rows));
         for ($i = 0; $i < $filler; $i++) {
             $template = $templates[$weightedIndex[array_rand($weightedIndex)]];
@@ -603,6 +608,7 @@ class DemoDataSeeder extends Seeder
             $rows[] = [
                 'id' => (string) Str::uuid(),
                 'project_id' => $project->id,
+                'environment_id' => $this->environmentId,
                 'trace_id' => $trace['id'],
                 'query_type' => $template['type'],
                 'sql' => $template['sql'],
@@ -717,7 +723,6 @@ class DemoDataSeeder extends Seeder
         $connections = ['redis', 'redis', 'redis', 'database', 'sqs'];
         $queues = ['default', 'default', 'default', 'high', 'low', 'emails'];
 
-        // Weighted status distribution: mostly completed, some released/queued, rare failures.
         $statuses = [
             'completed', 'completed', 'completed', 'completed', 'completed',
             'completed', 'completed', 'completed', 'completed', 'completed',
@@ -743,6 +748,7 @@ class DemoDataSeeder extends Seeder
             $rows[] = [
                 'id' => (string) Str::uuid(),
                 'project_id' => $project->id,
+                'environment_id' => $this->environmentId,
                 'trace_id' => null,
                 'job_class' => $jobClasses[array_rand($jobClasses)],
                 'queue' => $queues[array_rand($queues)],
@@ -810,6 +816,7 @@ class DemoDataSeeder extends Seeder
             $rows[] = [
                 'id' => (string) Str::uuid(),
                 'project_id' => $project->id,
+                'environment_id' => $this->environmentId,
                 'command' => $tpl['command'],
                 'memory_peak_kb' => random_int(14_000, 128_000),
                 'arguments' => json_encode([]),
@@ -923,6 +930,7 @@ class DemoDataSeeder extends Seeder
                 $rows[] = [
                     'id' => (string) Str::uuid(),
                     'project_id' => $project->id,
+                    'environment_id' => $this->environmentId,
                     'task' => $tpl['task'],
                     'task_hash' => $hash,
                     ...($status === 'skipped' ? ['lazy_loads' => null, 'hydrated_models' => null] : $this->modelCounts()),
@@ -1036,6 +1044,7 @@ class DemoDataSeeder extends Seeder
                 $rows[] = [
                     'id' => (string) Str::uuid(),
                     'project_id' => $project->id,
+                    'environment_id' => $this->environmentId,
                     'trace_id' => null,
                     'mailable_class' => $tpl['class'],
                     'mailer' => $tpl['mailer'],
@@ -1130,6 +1139,7 @@ class DemoDataSeeder extends Seeder
                     $rows[] = [
                         'id' => (string) Str::uuid(),
                         'project_id' => $project->id,
+                        'environment_id' => $this->environmentId,
                         'trace_id' => null,
                         'notification_class' => $tpl['class'],
                         'channel' => $channel,
@@ -1208,6 +1218,7 @@ class DemoDataSeeder extends Seeder
                     $rows[] = [
                         'id' => (string) Str::uuid(),
                         'project_id' => $project->id,
+                        'environment_id' => $this->environmentId,
                         'trace_id' => null,
                         'key' => $key,
                         'store' => $stores[array_rand($stores)],
@@ -1330,6 +1341,7 @@ class DemoDataSeeder extends Seeder
                 $rows[] = [
                     'id' => (string) Str::uuid(),
                     'project_id' => $project->id,
+                    'environment_id' => $this->environmentId,
                     'trace_id' => null,
                     'method' => $method,
                     'host' => $host,
@@ -1407,6 +1419,7 @@ class DemoDataSeeder extends Seeder
                 $rows[] = [
                     'id' => (string) Str::uuid(),
                     'project_id' => $project->id,
+                    'environment_id' => $this->environmentId,
                     'trace_id' => null,
                     'level' => $tpl['level'],
                     'message' => $tpl['message'],

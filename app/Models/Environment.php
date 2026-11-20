@@ -18,7 +18,6 @@ use Illuminate\Support\Str;
     'project_id',
     'name',
     'slug',
-    'is_default',
 ])]
 #[Hidden(['api_key_hash', 'previous_api_key_hash'])]
 class Environment extends Model

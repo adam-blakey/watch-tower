@@ -79,6 +79,8 @@ Then open `.env` and adjust at minimum:
 
 ```env
 APP_NAME="Watch Tower"
+# Optional: custom logo/favicon URL
+APP_ICON_URL=
 APP_URL=http://localhost:8000
 ```
 
@@ -311,7 +313,9 @@ SESSION_DRIVER=redis
 
 ### Mail
 
-Default is `log` — emails are written to `storage/logs/laravel.log`. To use SMTP:
+Watch Tower emails super admins and each project's admins when a new issue is raised, or when a resolved issue occurs again and is reopened. The emails are queued, so they are only sent while a queue worker runs.
+
+Default is `log` — emails are written to `storage/logs/laravel.log` and nobody receives them. To use SMTP:
 
 ```env
 MAIL_MAILER=smtp

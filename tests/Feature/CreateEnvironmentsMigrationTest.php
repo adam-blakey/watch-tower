@@ -1,8 +1,10 @@
 <?php
 
 use App\Models\Environment;
+use App\Models\LogEntry;
 use App\Models\Organization;
 use App\Models\Project;
+use App\Models\Trace;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -56,14 +58,13 @@ it('moves each project key to a default production environment that keeps authen
     $migration->up();
     restoreEnvironmentsDeletingAt();
 
-    $environment = Project::findOrFail($id)->defaultEnvironment;
+    $environment = Project::findOrFail($id)->environments()->sole();
 
     expect(Schema::hasColumn('projects', 'api_key_hash'))->toBeFalse()
         ->and(Schema::hasColumn('projects', 'api_key_version'))->toBeFalse()
-        ->and($environment->only(['name', 'slug', 'is_default', 'api_key_prefix', 'api_key_version']))->toBe([
+        ->and($environment->only(['name', 'slug', 'api_key_prefix', 'api_key_version']))->toBe([
             'name' => 'Production',
             'slug' => 'production',
-            'is_default' => true,
             'api_key_prefix' => 'pk_before_',
             'api_key_version' => 2,
         ])
@@ -94,11 +95,11 @@ it('gives every project its own default environment', function () {
         ->and(Environment::count())->toBe(2);
 });
 
-it('puts the default environment key back on the project when rolled back', function () {
+it('puts the first environment\'s key back on the project when rolled back', function () {
     $migration = createEnvironmentsMigration();
     $project = Project::factory()->withApiKey('pk_test_default')->create();
+    $project->environments()->sole()->rotateApiKey(gracePeriodSeconds: 3600);
     Environment::factory()->for($project)->withApiKey('pk_test_staging')->create();
-    $project->defaultEnvironment->rotateApiKey(gracePeriodSeconds: 3600);
 
     $migration->down();
 
@@ -113,4 +114,18 @@ it('puts the default environment key back on the project when rolled back', func
 
     $this->withHeader('Authorization', 'Bearer pk_test_default')->postJson('/api/agent-auth')->assertOk();
     $this->withHeader('Authorization', 'Bearer pk_test_staging')->postJson('/api/agent-auth')->assertUnauthorized();
+});
+
+it('gives telemetry stored before environments existed the environment of its project', function () {
+    $project = Project::factory()->create();
+    $other = Project::factory()->create();
+    $trace = Trace::factory()->for($project)->create(['environment_id' => null]);
+    $log = LogEntry::create(['project_id' => $project->id, 'level' => 'info', 'message' => 'before', 'occurred_at' => now()]);
+    $otherTrace = Trace::factory()->for($other)->create(['environment_id' => null]);
+
+    (require glob(database_path('migrations/*_backfill_environment_id_on_telemetry_tables.php'))[0])->up();
+
+    expect($trace->fresh()->environment_id)->toBe($project->environments()->sole()->id)
+        ->and($log->fresh()->environment_id)->toBe($project->environments()->sole()->id)
+        ->and($otherTrace->fresh()->environment_id)->toBe($other->environments()->sole()->id);
 });

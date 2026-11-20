@@ -16,10 +16,6 @@ return new class extends Migration
             $table->unsignedBigInteger('rows_deleted')->nullable();
         });
 
-        // Baseline for the retention prune: an install that already has projects
-        // has no recorded run yet, and the overdue warning must not fire until
-        // a full day has passed without one. `rows_deleted` stays null until a
-        // real run replaces this row.
         DB::table('maintenance_runs')->insert([
             'task' => 'watch:prune',
             'started_at' => now(),

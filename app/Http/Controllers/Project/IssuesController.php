@@ -136,7 +136,7 @@ class IssuesController extends Controller
             ->distinct('user_identifier')
             ->count('user_identifier');
 
-        $environmentCounts = $project->environmentCounts($group->occurrences());
+        $environmentCounts = ErrorOccurrence::countsByEnvironment($group->occurrences()->getQuery());
 
         $sparkline = $this->sparklines($project, [$group->id], $environments)[$group->id] ?? [];
 

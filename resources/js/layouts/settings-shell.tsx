@@ -9,6 +9,7 @@ import {
 import type { ComponentType, ReactNode } from 'react';
 
 import { MaintenanceBanner } from '@/components/maintenance-banner';
+import { MobileNav } from '@/components/mobile-nav';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -63,73 +64,84 @@ export function SettingsShell({ children }: SettingsShellProps) {
         router.post(logout.url());
     };
 
+    const sidebar = (
+        <>
+            <div className="px-4 pt-5 pb-3">
+                <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                >
+                    <ArrowLeft className="h-4 w-4" />
+                    Back
+                </Link>
+            </div>
+
+            <div className="flex items-center gap-2 px-4 pb-3 text-sm">
+                <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground">
+                    {(user?.name ?? 'U').charAt(0).toUpperCase()}
+                </span>
+                <span className="truncate font-medium">{user?.name}</span>
+            </div>
+
+            <nav className="space-y-0.5 px-2 py-2">
+                {items.map((item) => {
+                    const active = item.matches(path);
+                    const Icon = item.icon;
+
+                    return (
+                        <Link
+                            key={item.label}
+                            href={item.href}
+                            className={cn(
+                                'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
+                                active
+                                    ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
+                                    : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                            )}
+                        >
+                            <Icon className="h-4 w-4 shrink-0" />
+                            {item.label}
+                        </Link>
+                    );
+                })}
+            </nav>
+
+            <div className="mt-auto px-3 py-4">
+                <Separator className="mb-3" />
+                <div className="mb-2 px-1 text-[11px] leading-tight">
+                    <div className="font-medium text-foreground">
+                        Signed in as
+                    </div>
+                    <div className="truncate text-muted-foreground">
+                        {user?.email}
+                    </div>
+                </div>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    onClick={onLogout}
+                    className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+                >
+                    <LogOut className="h-4 w-4" />
+                    Log out
+                </Button>
+            </div>
+        </>
+    );
+
     return (
         <div className="flex min-h-screen bg-background text-foreground">
             <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col self-start border-r border-sidebar-border bg-sidebar md:flex">
-                <div className="px-4 pt-5 pb-3">
-                    <Link
-                        href="/"
-                        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back
-                    </Link>
-                </div>
-
-                <div className="flex items-center gap-2 px-4 pb-3 text-sm">
-                    <span className="grid h-7 w-7 place-items-center rounded-md bg-primary text-[11px] font-semibold text-primary-foreground">
-                        {(user?.name ?? 'U').charAt(0).toUpperCase()}
-                    </span>
-                    <span className="truncate font-medium">{user?.name}</span>
-                </div>
-
-                <nav className="space-y-0.5 px-2 py-2">
-                    {items.map((item) => {
-                        const active = item.matches(path);
-                        const Icon = item.icon;
-
-                        return (
-                            <Link
-                                key={item.label}
-                                href={item.href}
-                                className={cn(
-                                    'flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] transition-colors',
-                                    active
-                                        ? 'bg-sidebar-accent font-medium text-sidebar-accent-foreground'
-                                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                                )}
-                            >
-                                <Icon className="h-4 w-4 shrink-0" />
-                                {item.label}
-                            </Link>
-                        );
-                    })}
-                </nav>
-
-                <div className="mt-auto px-3 py-4">
-                    <Separator className="mb-3" />
-                    <div className="mb-2 px-1 text-[11px] leading-tight">
-                        <div className="font-medium text-foreground">
-                            Signed in as
-                        </div>
-                        <div className="truncate text-muted-foreground">
-                            {user?.email}
-                        </div>
-                    </div>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        type="button"
-                        onClick={onLogout}
-                        className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-                    >
-                        <LogOut className="h-4 w-4" />
-                        Log out
-                    </Button>
-                </div>
+                {sidebar}
             </aside>
 
             <main className="flex min-w-0 flex-1 flex-col">
+                <MobileNav title="Settings">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                        {sidebar}
+                    </div>
+                </MobileNav>
                 <MaintenanceBanner />
                 {children}
             </main>

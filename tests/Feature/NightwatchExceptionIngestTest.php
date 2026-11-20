@@ -79,7 +79,6 @@ it('lets the newest occurrence decide the handled flag and versions of the group
         ->and($group->language_version)->toBe('8.4.2')
         ->and($group->framework_version)->toBe('12.36.0');
 
-    // An older occurrence arriving late changes nothing on the group.
     postNightwatchRecords([nightwatchExceptionIngestRecord($this->base - 3600, [
         'handled' => true,
         'php_version' => '8.3.0',
@@ -93,7 +92,6 @@ it('lets the newest occurrence decide the handled flag and versions of the group
         ->and($group->language_version)->toBe('8.4.2')
         ->and($group->framework_version)->toBe('12.36.0');
 
-    // A newer handled occurrence flips the group back.
     postNightwatchRecords([nightwatchExceptionIngestRecord($this->base + 120, [
         'handled' => true,
         'php_version' => '8.4.0',
@@ -141,8 +139,6 @@ it('counts handled and unhandled occurrences separately in the summary', functio
 });
 
 it('lists versions newest first, servers from occurrences and the oldest release', function () {
-    // Time order, versions and releases are all out of step with their alphabetical order and with the order the
-    // records are posted in, so only a real "newest first" / "oldest first" ordering gives these results.
     postNightwatchRecords([
         nightwatchExceptionIngestRecord($this->base + 120, ['deploy' => 'v3.0.0', 'server' => 'web-3', 'php_version' => '8.4.1', 'laravel_version' => '12.35.1']),
         nightwatchExceptionIngestRecord($this->base, ['deploy' => 'v2.0.0', 'server' => 'web-1', 'php_version' => '8.4.2', 'laravel_version' => '12.36.0']),
@@ -272,7 +268,7 @@ it('stores the handled flag of a legacy event given as handled or is_handled', f
             'occurred_at' => '2026-03-01T10:00:00Z',
             ...$flag,
         ],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole()->is_handled)->toBeTrue()
         ->and(nightwatchExceptionGroup($this->project)->is_handled)->toBeTrue();
@@ -285,7 +281,7 @@ it('stores a legacy event without a flag as unhandled', function () {
     (new EventStore(new Fingerprinter))->store($this->project, [
         'type' => 'exception',
         'data' => ['class' => 'RuntimeException', 'occurred_at' => '2026-03-01T10:00:00Z'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(ErrorOccurrence::where('project_id', $this->project->id)->sole())
         ->is_handled->toBeFalse()
@@ -319,7 +315,7 @@ it('marks the trace as having errors and rolls that back with the occurrence', f
             'class' => 'RuntimeException',
             'occurred_at' => '2026-07-01T10:15:00Z',
         ],
-    ]))->toThrow(RuntimeException::class, 'insert failed');
+    ], $this->project->environments()->value('id')))->toThrow(RuntimeException::class, 'insert failed');
 
     expect($trace->refresh()->has_errors)->toBeFalse()
         ->and(ErrorOccurrence::count())->toBe(0)

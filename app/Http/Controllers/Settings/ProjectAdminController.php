@@ -40,7 +40,7 @@ class ProjectAdminController extends Controller
         $projects = Project::query()
             ->orderBy('name')
             ->withCount('admins')
-            ->with('defaultEnvironment')
+            ->with(['environments' => fn ($query) => $query->orderBy('name')])
             ->get(['id', 'name', 'slug', 'description', 'sampling_rate', 'retention_days', 'created_at']);
 
         /*
@@ -59,11 +59,15 @@ class ProjectAdminController extends Controller
                 'name' => $project->name,
                 'slug' => $project->slug,
                 'description' => $project->description,
-                'api_key_prefix' => $project->defaultEnvironment?->api_key_prefix,
-                'api_key_last_used_at' => $project->defaultEnvironment?->api_key_last_used_at?->toISOString(),
-                'previous_api_key_expires_at' => $project->defaultEnvironment?->hasActivePreviousApiKey()
-                    ? $project->defaultEnvironment->previous_api_key_expires_at->toISOString()
-                    : null,
+                'environments' => $project->environments->map(fn (Environment $environment) => [
+                    'id' => $environment->id,
+                    'name' => $environment->name,
+                    'api_key_prefix' => $environment->api_key_prefix,
+                    'api_key_last_used_at' => $environment->api_key_last_used_at?->toISOString(),
+                    'previous_api_key_expires_at' => $environment->hasActivePreviousApiKey()
+                        ? $environment->previous_api_key_expires_at->toISOString()
+                        : null,
+                ])->all(),
                 'sampling_rate' => $project->sampling_rate,
                 'retention_days' => $project->retention_days,
                 'admins_count' => $project->admins_count,
@@ -112,7 +116,7 @@ class ProjectAdminController extends Controller
         $apiKey = $project->getConnection()->transaction(function () use ($project): string {
             $project->save();
 
-            return $project->createDefaultEnvironment();
+            return $project->createEnvironment();
         });
 
         $project->admins()->sync($validated['admin_ids'] ?? []);

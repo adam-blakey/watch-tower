@@ -32,11 +32,11 @@ it('keeps traces that share a correlation id independent per project', function 
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/alpha', 'status_code' => 200, 'user_id' => 'alpha-user'],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($otherProject, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'POST', 'uri' => '/beta', 'status_code' => 500, 'user_id' => 'beta-user'],
-    ]);
+    ], $otherProject->environments()->value('id'));
 
     expect(Trace::where('correlation_id', $correlationId)->count())->toBe(2);
 
@@ -55,11 +55,11 @@ it('keeps traces that share a correlation id independent per project', function 
     $this->store->store($otherProject, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'PUT', 'uri' => '/beta-updated', 'status_code' => 201],
-    ]);
+    ], $otherProject->environments()->value('id'));
     $this->store->store($otherProject, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'SELECT 1', 'duration_ms' => 1],
-    ]);
+    ], $otherProject->environments()->value('id'));
 
     $first->refresh();
     $second->refresh();
@@ -80,11 +80,11 @@ it('does not link a child record to another project\'s trace with the same corre
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/alpha'],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($otherProject, [
         'type' => 'log',
         'data' => ['request_id' => $correlationId, 'level' => 'info', 'message' => 'from the other project'],
-    ]);
+    ], $otherProject->environments()->value('id'));
 
     $ownTrace = Trace::where('project_id', $this->project->id)->where('correlation_id', $correlationId)->first();
     $otherTrace = Trace::where('project_id', $otherProject->id)->where('correlation_id', $correlationId)->first();
@@ -101,11 +101,11 @@ it('links a query and an exception that arrive before the request record and kee
     $this->store->store($this->project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'SELECT * FROM users', 'duration_ms' => 4.2],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'exception',
         'data' => ['request_id' => $correlationId, 'class' => 'RuntimeException', 'file' => 'app/A.php', 'line' => 5, 'message' => 'boom'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     $stub = Trace::where('project_id', $this->project->id)->where('correlation_id', $correlationId)->first();
 
@@ -115,7 +115,7 @@ it('links a query and an exception that arrive before the request record and kee
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'POST', 'uri' => '/orders', 'status_code' => 500, 'duration_ms' => 120, 'environment' => 'production'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(Trace::where('correlation_id', $correlationId)->count())->toBe(1);
 
@@ -137,19 +137,19 @@ it('links logs, cache events, events and jobs that arrive before the request rec
     $this->store->store($this->project, [
         'type' => 'log',
         'data' => ['request_id' => $correlationId, 'level' => 'info', 'message' => 'early log'],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'cache-event',
         'data' => ['request_id' => $correlationId, 'key' => 'k', 'operation' => 'write'],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'job',
         'data' => ['request_id' => $correlationId, 'class' => 'App\\Jobs\\Early', 'status' => 'queued'],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/late'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     $trace = Trace::where('correlation_id', $correlationId)->sole();
 
@@ -165,11 +165,11 @@ it('never downgrades has_errors or has_slow_queries when the request record repo
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/x', 'has_errors' => true, 'has_slow_queries' => true],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $correlationId, 'method' => 'GET', 'uri' => '/x', 'has_errors' => false, 'has_slow_queries' => false],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     $trace = Trace::where('correlation_id', $correlationId)->sole();
 
@@ -178,7 +178,6 @@ it('never downgrades has_errors or has_slow_queries when the request record repo
 });
 
 it('does not count stub traces in request totals', function () {
-    // The range ends at "now"; without a frozen clock, records stored a tick later fall outside it.
     $this->freezeTime();
     $range = TimeRange::fromLabel('24h');
     $stubOnlyId = (string) Str::uuid();
@@ -186,11 +185,11 @@ it('does not count stub traces in request totals', function () {
     $this->store->store($this->project, [
         'type' => 'query',
         'data' => ['request_id' => $stubOnlyId, 'sql' => 'SELECT 1', 'duration_ms' => 1],
-    ]);
+    ], $this->project->environments()->value('id'));
     $this->store->store($this->project, [
         'type' => 'exception',
         'data' => ['request_id' => $stubOnlyId, 'class' => 'RuntimeException', 'file' => 'app/A.php', 'line' => 5, 'message' => 'boom', 'user_id' => 'u1'],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect(Trace::where('project_id', $this->project->id)->where('is_stub', true)->count())->toBe(1);
 
@@ -206,7 +205,7 @@ it('does not count stub traces in request totals', function () {
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => (string) Str::uuid(), 'method' => 'GET', 'uri' => '/real', 'status_code' => 200, 'duration_ms' => 30],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(1)
         ->and($requests->routes($this->project, $range, new EnvironmentFilter))->toHaveCount(1)
@@ -217,7 +216,7 @@ it('does not count stub traces in request totals', function () {
     $this->store->store($this->project, [
         'type' => 'request',
         'data' => ['request_id' => $stubOnlyId, 'method' => 'GET', 'uri' => '/filled', 'status_code' => 500, 'duration_ms' => 10],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['total'])->toBe(2)
         ->and($requests->summary($this->project, $range, new EnvironmentFilter)['totals']['server_error'])->toBe(1);
@@ -251,7 +250,7 @@ it('returns the existing stub when a concurrent job creates it between the looku
     $this->store->store($this->project, [
         'type' => 'query',
         'data' => ['request_id' => $correlationId, 'sql' => 'SELECT 1', 'duration_ms' => 1],
-    ]);
+    ], $this->project->environments()->value('id'));
 
     expect($competitorInserted)->toBeTrue()
         ->and(Trace::where('correlation_id', $correlationId)->count())->toBe(1)
@@ -267,4 +266,22 @@ it('scopes the trace unique index to the project', function () {
 
     expect($uniqueColumns)->toContain(['project_id', 'correlation_id'])
         ->and($uniqueColumns)->not->toContain(['correlation_id']);
+});
+
+it('leaves empty dashboard duration buckets null and counts exceptions in the same window', function () {
+    $range = TimeRange::fromLabel('24h');
+
+    Trace::factory()->create([
+        'project_id' => $this->project->id,
+        'occurred_at' => $range->to->subMinutes(5),
+        'duration_ms' => 40,
+    ]);
+
+    $stats = (new DashboardStats)->forProject($this->project, $range, new EnvironmentFilter);
+    $buckets = collect($stats['activity']['buckets']);
+
+    expect($buckets->whereNull('avg_duration')->count())->toBe(59)
+        ->and($buckets->whereNotNull('avg_duration')->count())->toBe(1)
+        ->and($stats['exceptions']['window_label'])->toBe('the last 24 hours')
+        ->and($stats['exceptions']['total'])->toBe(0);
 });

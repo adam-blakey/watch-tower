@@ -204,12 +204,10 @@ it('picks up again after a crash that left a half-written copy behind', function
     $this->upgrade->useSmallChunks(afterCopy: fn () => throw new RuntimeException('simulated crash'));
     expect(fn () => $this->upgrade->migrate())->toThrow(RuntimeException::class, 'simulated crash');
 
-    // The copy exists but nothing was dropped, and the migration was not recorded.
     expect(Schema::connection('sqlite')->hasTable('traces'))->toBeTrue()
         ->and(Schema::connection(Databases::TELEMETRY)->hasTable('traces'))->toBeTrue()
         ->and(DB::table('migrations')->where('migration', 'like', '%move_telemetry%')->exists())->toBeFalse();
 
-    // Junk in a target table must not survive the re-run.
     DB::connection(Databases::TELEMETRY)->table('end_users')->truncate();
     DB::connection(Databases::TELEMETRY)->table('traces')->where('correlation_id', 'corr-0')->delete();
 
@@ -223,7 +221,6 @@ it('picks up again when only some tables are still in the old database', functio
     $before = $this->upgrade->snapshot('sqlite', 'sqlite');
     $this->upgrade->migrate();
 
-    // Put two tables back, as if a crash had interrupted dropping the sources on a server without transactional DDL.
     $partial = collect($this->upgrade->splitMigration('telemetry')->tables())
         ->filter(fn ($table) => in_array($table->name, ['mail_sends', 'cache_events'], true))
         ->values()->all();
