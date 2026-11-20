@@ -57,7 +57,6 @@ export const REQUEST_STAGES: Array<{
  * Stage durations are fractional milliseconds: most stages of a fast request take well under one.
  */
 export function formatStageMs(value: number): string {
-    // Round first, so 999.6 reads "1.00 s" and 99.96 reads "100 ms".
     if (Math.round(value) >= 1000) {
         return `${(value / 1000).toFixed(2)} s`;
     }

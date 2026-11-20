@@ -500,7 +500,7 @@ function OccurrenceSection({ exception }: { exception: ExceptionDetail }) {
     const fallbackCopy = (text: string) => {
         const textarea = document.createElement('textarea');
         textarea.value = text;
-        textarea.style.position = 'fixed'; // avoid scroll jump
+        textarea.style.position = 'fixed';
         document.body.appendChild(textarea);
         textarea.focus();
         textarea.select();

@@ -1,14 +1,5 @@
 name: Release image
 
-# Publishing a GitHub release builds the production image and pushes it to
-# ghcr.io/<owner>/<repo>. PRs that touch the image files, and manual runs
-# (Actions > Release image > Run workflow), only check that it builds.
-#
-# Release tags must be semver, e.g. v1.2.3. They produce the tags 1.2.3, 1.2 and
-# latest. A pre-release such as v1.0.0-rc.1 produces 1.0.0-rc.1 and latest.
-# Every published release moves latest, including pre-releases and releases of
-# an older version.
-
 on:
   release:
     types: [published]
@@ -39,7 +30,6 @@ jobs:
         with:
           persist-credentials: false
 
-      # Registry paths must be lowercase, but the owner is Andrewpk.
       - name: Set image name
         run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
@@ -59,10 +49,6 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE }}
-          # latest=true adds "latest" to every release, pre-releases included.
-          # Pre-releases skip {{major}}.{{minor}}, so v1.0.0-rc.1 becomes
-          # 1.0.0-rc.1 and latest. PR and manual runs have no semver tag, so
-          # they get no tags at all.
           flavor: |
             latest=true
           tags: |
@@ -77,8 +63,6 @@ jobs:
           push: ${{ github.event_name == 'release' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Skip the provenance attestation. It adds an extra "unknown/unknown"
-          # entry to the GHCR package and slows the build down.
           provenance: false
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -17,9 +17,12 @@ use App\Models\QueueJobRun;
 use App\Models\ScheduledTaskRun;
 use App\Models\Trace;
 use App\Models\TraceQuery;
+use App\Models\User;
+use App\Notifications\IssueRaised;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class EventStore
 {
@@ -227,8 +230,9 @@ class EventStore
         $release = $this->limitedString($data['release'] ?? null, 255);
         $sourceType = $this->limitedString($data['source_type'] ?? null, 50);
         $sourceLabel = $this->limitedString($data['source_label'] ?? null, 255);
+        $raised = null;
 
-        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $environmentId, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel) {
+        $occurrence = DB::connection(Databases::TELEMETRY)->transaction(function () use ($project, $environmentId, $trace, $fingerprint, $exceptionClass, $message, $file, $line, $occurredAt, $data, $userIdentifier, $userDetails, $isHandled, $languageVersion, $frameworkVersion, $hostname, $release, $sourceType, $sourceLabel, &$raised) {
             if ($trace && ! $trace->has_errors) {
                 $trace->forceFill(['has_errors' => true])->save();
             }
@@ -239,7 +243,7 @@ class EventStore
                 ->first();
 
             if ($group) {
-                $this->recordRecurrence($group, $occurredAt, [
+                $raised = $this->recordRecurrence($group, $occurredAt, [
                     'is_handled' => $isHandled,
                     'language_version' => $languageVersion,
                     'framework_version' => $frameworkVersion,
@@ -263,6 +267,8 @@ class EventStore
                     'last_occurrence_at' => $occurredAt,
                     'status' => 'unresolved',
                 ]);
+
+                $raised = 'new';
             }
 
             $occurrence = ErrorOccurrence::create([
@@ -294,9 +300,25 @@ class EventStore
             return $occurrence;
         });
 
+        if ($raised !== null) {
+            $this->notifyIssueRaised($project, $occurrence, $raised === 'regression');
+        }
+
         if ($userIdentifier !== null && $userDetails === []) {
             $this->completeUserDetails(ErrorOccurrence::class, $project, $occurrence->id, $userIdentifier);
         }
+    }
+
+    private function notifyIssueRaised(Project $project, ErrorOccurrence $occurrence, bool $isRegression): void
+    {
+        rescue(function () use ($project, $occurrence, $isRegression): void {
+            $recipients = User::query()
+                ->where('role', User::ROLE_SUPER_ADMIN)
+                ->orWhereHas('projects', fn ($query) => $query->whereKey($project->getKey()))
+                ->get();
+
+            Notification::send($recipients, new IssueRaised($occurrence->errorGroup, $occurrence, $isRegression));
+        });
     }
 
     /**
@@ -790,7 +812,7 @@ class EventStore
      *
      * @param  array{is_handled: bool, language_version: string|null, framework_version: string|null}  $latestDetails
      */
-    private function recordRecurrence(ErrorGroup $group, CarbonImmutable $occurredAt, array $latestDetails): void
+    private function recordRecurrence(ErrorGroup $group, CarbonImmutable $occurredAt, array $latestDetails): ?string
     {
         $attributes = [];
 
@@ -834,7 +856,11 @@ class EventStore
                 'body' => 'Reopened automatically: the error occurred again after it was resolved.',
                 'meta' => $regression,
             ]);
+
+            return 'regression';
         }
+
+        return null;
     }
 
     /**

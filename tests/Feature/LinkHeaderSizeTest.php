@@ -5,10 +5,8 @@ use Illuminate\Support\Facades\Vite;
 beforeEach(function () {
     $this->withoutVite();
 
-    // nginx's default proxy_buffer_size is 4 KB and has to hold every response header, cookies included.
     $this->linkHeaderBudget = 2048;
 
-    // Shaped like Vite::preloadedAssets(): the fonts, the CSS, the app entry, the page chunk, then shared chunks.
     $this->fakePreloads = function (int $count, string $host = 'watch.example.com'): array {
         $assets = [];
 

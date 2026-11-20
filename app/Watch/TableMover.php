@@ -451,7 +451,6 @@ final class TableMover
 
             $this->removeMarkers($target, $work);
         } catch (Throwable) {
-            // The next run treats whatever is left as a disposable copy.
         }
     }
 
@@ -912,7 +911,6 @@ final class TableMover
                 try {
                     $source->unprepared('rollback');
                 } catch (Throwable) {
-                    // The original error is the one that matters.
                 }
 
                 throw $exception;
@@ -932,7 +930,6 @@ final class TableMover
                 try {
                     $source->unprepared('unlock tables');
                 } catch (Throwable) {
-                    // Ending the session releases them.
                 }
             }
 

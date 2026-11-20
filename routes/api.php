@@ -8,11 +8,6 @@ use App\Http\Middleware\AuthenticateNightwatchAgent;
 use App\Http\Middleware\AuthenticateNightwatchIngest;
 use Illuminate\Support\Facades\Route;
 
-// The ingest limiter is keyed on the project resolved by the auth middleware,
-// so throttle:ingest must run after it (bootstrap/app.php pins that order in
-// the router's middleware priority list). agent-auth is keyed on the client IP
-// and runs first so that guessed environment tokens are throttled too.
-
 Route::middleware([AuthenticateIngestRequest::class, 'throttle:ingest'])
     ->prefix('ingest')
     ->group(function () {

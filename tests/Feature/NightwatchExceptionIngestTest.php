@@ -78,7 +78,6 @@ it('lets the newest occurrence decide the handled flag and versions of the group
         ->and($group->language_version)->toBe('8.4.2')
         ->and($group->framework_version)->toBe('12.36.0');
 
-    // An older occurrence arriving late changes nothing on the group.
     postNightwatchRecords([nightwatchExceptionIngestRecord($this->base - 3600, [
         'handled' => true,
         'php_version' => '8.3.0',
@@ -92,7 +91,6 @@ it('lets the newest occurrence decide the handled flag and versions of the group
         ->and($group->language_version)->toBe('8.4.2')
         ->and($group->framework_version)->toBe('12.36.0');
 
-    // A newer handled occurrence flips the group back.
     postNightwatchRecords([nightwatchExceptionIngestRecord($this->base + 120, [
         'handled' => true,
         'php_version' => '8.4.0',
@@ -139,8 +137,6 @@ it('counts handled and unhandled occurrences separately in the summary', functio
 });
 
 it('lists versions newest first, servers from occurrences and the oldest release', function () {
-    // Time order, versions and releases are all out of step with their alphabetical order and with the order the
-    // records are posted in, so only a real "newest first" / "oldest first" ordering gives these results.
     postNightwatchRecords([
         nightwatchExceptionIngestRecord($this->base + 120, ['deploy' => 'v3.0.0', 'server' => 'web-3', 'php_version' => '8.4.1', 'laravel_version' => '12.35.1']),
         nightwatchExceptionIngestRecord($this->base, ['deploy' => 'v2.0.0', 'server' => 'web-1', 'php_version' => '8.4.2', 'laravel_version' => '12.36.0']),
