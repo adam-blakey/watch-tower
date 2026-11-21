@@ -148,18 +148,32 @@ function EnvironmentPicker() {
     const isChecked = (slug: string) => isAll || selected.includes(slug);
 
     const visit = (next: string[]) => {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('env[]');
-        url.searchParams.delete('page');
-
         // An empty selection means "all", so selecting every environment (or none) collapses to it.
-        if (next.length < allSlugs.length) {
-            next.forEach((current) =>
-                url.searchParams.append('env[]', current),
-            );
-        }
+        const nextSelected = next.length < allSlugs.length ? next : [];
 
-        router.visit(url.pathname + url.search, { preserveScroll: true });
+        const url = new URL(window.location.href);
+        // Inertia rewrites env[] as env[0], env[1], ..., so drop every variant before re-adding.
+        [...url.searchParams.keys()]
+            .filter((key) => key === 'env' || key.startsWith('env['))
+            .forEach((key) => url.searchParams.delete(key));
+        url.searchParams.delete('page');
+        nextSelected.forEach((current) =>
+            url.searchParams.append('env[]', current),
+        );
+
+        router.visit(url.pathname + url.search, {
+            preserveScroll: true,
+            // Keep the menu mounted so several environments can be toggled in one go.
+            preserveState: true,
+            // Sync visit (cancels the previous one); the optimistic props make rapid toggles build on each other.
+            async: false,
+            optimistic: () => ({
+                currentProject: {
+                    ...project,
+                    selected_environments: nextSelected,
+                },
+            }),
+        });
     };
 
     const toggle = (slug: string, checked: boolean) => {
