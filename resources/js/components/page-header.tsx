@@ -7,6 +7,7 @@ import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
     DropdownMenuContent,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Separator } from '@/components/ui/separator';
@@ -140,16 +141,34 @@ function EnvironmentPicker() {
                   .map((environment) => environment.name)
                   .join(', ');
 
-    const toggle = (slug: string, checked: boolean) => {
-        const next = checked
-            ? [...selected, slug]
-            : selected.filter((current) => current !== slug);
+    const allSlugs = project.environments.map(
+        (environment) => environment.slug,
+    );
+    const isAll = selected.length === 0;
+    const isChecked = (slug: string) => isAll || selected.includes(slug);
 
+    const visit = (next: string[]) => {
         const url = new URL(window.location.href);
         url.searchParams.delete('env[]');
         url.searchParams.delete('page');
-        next.forEach((current) => url.searchParams.append('env[]', current));
+
+        // An empty selection means "all", so selecting every environment (or none) collapses to it.
+        if (next.length < allSlugs.length) {
+            next.forEach((current) =>
+                url.searchParams.append('env[]', current),
+            );
+        }
+
         router.visit(url.pathname + url.search, { preserveScroll: true });
+    };
+
+    const toggle = (slug: string, checked: boolean) => {
+        const current = isAll ? allSlugs : selected;
+        visit(
+            checked
+                ? [...current, slug]
+                : current.filter((existing) => existing !== slug),
+        );
     };
 
     return (
@@ -166,10 +185,18 @@ function EnvironmentPicker() {
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+                <DropdownMenuCheckboxItem
+                    checked={isAll}
+                    onSelect={(event) => event.preventDefault()}
+                    onCheckedChange={() => visit([])}
+                >
+                    All environments
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
                 {project.environments.map((environment) => (
                     <DropdownMenuCheckboxItem
                         key={environment.id}
-                        checked={selected.includes(environment.slug)}
+                        checked={isChecked(environment.slug)}
                         onSelect={(event) => event.preventDefault()}
                         onCheckedChange={(checked) =>
                             toggle(environment.slug, checked)
