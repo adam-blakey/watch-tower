@@ -23,9 +23,16 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::create('environments', function (Blueprint $table): void {
+        $projectId = collect(Schema::getColumns('projects'))->firstWhere('name', 'id');
+
+        Schema::create('environments', function (Blueprint $table) use ($projectId): void {
             $table->uuid('id')->primary();
-            $table->foreignUuid('project_id')->constrained('projects')->cascadeOnDelete();
+            if (($projectId['type_name'] ?? 'uuid') === 'uuid') {
+                $table->uuid('project_id');
+            } else {
+                $table->char('project_id', 36)->collation($projectId['collation']);
+            }
+            $table->foreign('project_id')->references('id')->on('projects')->cascadeOnDelete();
             $table->string('name');
             $table->string('slug', 64);
             $this->addKeyColumns($table);
