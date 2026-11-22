@@ -2,6 +2,7 @@
 
 use App\Jobs\DeleteProjectData;
 use App\Models\EndUser;
+use App\Models\Environment;
 use App\Models\ErrorOccurrence;
 use App\Models\Project;
 use App\Models\Trace;
@@ -12,6 +13,7 @@ use App\Watch\Stats\TimeRange;
 use App\Watch\Stats\UserStats;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
@@ -302,6 +304,7 @@ it('fills a trace stored while the end user appeared right after the lookup', fu
             $created = true;
             EndUser::factory()->create([
                 'project_id' => $this->project->id,
+                'environment_id' => $this->project->environments()->sole()->id,
                 'identifier' => 'user-1',
                 'name' => 'Jane Example',
                 'email' => 'jane@example.com',
@@ -324,6 +327,7 @@ it('fills an error occurrence stored while the end user appeared right after the
             $created = true;
             EndUser::factory()->create([
                 'project_id' => $this->project->id,
+                'environment_id' => $this->project->environments()->sole()->id,
                 'identifier' => 'user-1',
                 'name' => 'Jane Example',
                 'email' => 'jane@example.com',
@@ -376,4 +380,45 @@ it('lists a user once in the request and exception filters when their email chan
         ->and($exceptionUsers[0]['id'])->toBe('user-1')
         ->and($exceptionUsers[0]['count'])->toBe(2)
         ->and($exceptionUsers[0]['email'])->toBeIn(['jane@example.com', 'jane.new@example.com']);
+});
+
+it('keeps users with the same id in different environments apart', function () {
+    $staging = Environment::factory()->for($this->project)->create(['name' => 'Staging', 'slug' => 'staging']);
+    $production = $this->project->environments()->firstWhere('slug', 'production');
+    $stagingToken = Crypt::encryptString(json_encode([
+        'project_id' => $this->project->id,
+        'environment_id' => $staging->id,
+        'expires_at' => time() + 3600,
+    ]));
+    $productionToken = Crypt::encryptString(json_encode([
+        'project_id' => $this->project->id,
+        'environment_id' => $production->id,
+        'expires_at' => time() + 3600,
+    ]));
+    $now = CarbonImmutable::now()->getTimestamp() - 60 + 0.5;
+
+    postNightwatchRecords([nightwatchRequest($now, 'trace-production')], $productionToken)->assertOk();
+    postNightwatchRecords([
+        nightwatchUser($now + 1, name: 'Sam Staging', email: 'sam@staging.test'),
+        nightwatchRequest($now + 1.01, 'trace-staging'),
+    ], $stagingToken)->assertOk();
+    postNightwatchRecords([nightwatchUser($now + 2)], $productionToken)->assertOk();
+
+    expect(EndUser::count())->toBe(2)
+        ->and(Trace::where('correlation_id', 'trace-production')->sole()->user_name)->toBe('Jane Example')
+        ->and(Trace::where('correlation_id', 'trace-staging')->sole()->user_name)->toBe('Sam Staging');
+
+    $range = TimeRange::fromLabel('24h');
+    $rows = collect((new UserStats)->list($this->project, $range, new EnvironmentFilter))->keyBy('environment.slug');
+
+    expect($rows)->toHaveCount(2)
+        ->and($rows['production'])->id->toBe('user-1')->name->toBe('Jane Example')
+        ->and($rows['staging'])->id->toBe('user-1')->name->toBe('Sam Staging')
+        ->and((new UserStats)->summary($this->project, $range, new EnvironmentFilter)['authenticated_users'])->toBe(2);
+
+    $detail = (new UserStats)->detail($this->project, $staging, 'user-1', $range);
+
+    expect($detail)->name->toBe('Sam Staging')
+        ->and($detail['environment'])->toBe(['slug' => 'staging', 'name' => 'Staging'])
+        ->and($detail['summary']['total'])->toBe(1);
 });

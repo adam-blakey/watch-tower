@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Project;
 
 use App\Http\Controllers\Controller;
+use App\Models\Environment;
 use App\Models\Project;
 use App\Watch\Stats\EnvironmentFilter;
 use App\Watch\Stats\TimeRange;
@@ -30,11 +31,10 @@ class UsersController extends Controller
         ]);
     }
 
-    public function show(Project $project, string $user, Request $request, UserStats $stats): Response
+    public function show(Project $project, Environment $environment, string $user, Request $request, UserStats $stats): Response
     {
         $range = TimeRange::fromLabel($request->string('range', '1h')->toString());
-        $environments = EnvironmentFilter::fromRequest($request, $project);
-        $detail = $stats->detail($project, $user, $range, $environments);
+        $detail = $stats->detail($project, $environment, $user, $range);
 
         if ($detail === null) {
             throw new NotFoundHttpException('User not found for project.');

@@ -2,12 +2,17 @@
 
 namespace App\Watch\Stats;
 
+use App\Models\Environment;
 use App\Models\ErrorOccurrence;
 use App\Models\Project;
 use App\Models\QueueJobRun;
 use App\Models\Trace;
 use Carbon\CarbonImmutable;
 
+/**
+ * Users are told apart by environment as well as id: ids come from each environment's own database, so user `1` in
+ * staging and user `1` in production are different people.
+ */
 class UserStats
 {
     /**
@@ -32,12 +37,15 @@ class UserStats
             ->selectRaw('COUNT(*) AS total')
             ->selectRaw('SUM(CASE WHEN user_identifier IS NOT NULL THEN 1 ELSE 0 END) AS authenticated')
             ->selectRaw('SUM(CASE WHEN user_identifier IS NULL THEN 1 ELSE 0 END) AS guest')
-            ->selectRaw('COUNT(DISTINCT user_identifier) AS users')
             ->first();
+
+        $users = $base->toBase()->newQuery()
+            ->fromSub((clone $base)->whereNotNull('user_identifier')->select('environment_id', 'user_identifier')->distinct(), 'users')
+            ->count();
 
         $rows = (clone $base)
             ->orderBy('occurred_at')
-            ->get(['user_identifier', 'occurred_at']);
+            ->get(['environment_id', 'user_identifier', 'occurred_at']);
 
         $bucketCount = 60;
         $totalSeconds = max(1, $range->from->diffInSeconds($range->to));
@@ -55,9 +63,9 @@ class UserStats
         foreach ($rows as $row) {
             $offset = $row->occurred_at->getTimestamp() - $start;
             $idx = max(0, min($bucketCount - 1, intdiv($offset, $bucketSeconds)));
-            $userId = $row->user_identifier;
+            if ($row->user_identifier !== null) {
+                $userId = $row->environment_id.'|'.$row->user_identifier;
 
-            if ($userId !== null) {
                 if (! isset($userBuckets[$idx]['distinct'][$userId])) {
                     $userBuckets[$idx]['distinct'][$userId] = true;
                     $userBuckets[$idx]['count']++;
@@ -69,7 +77,7 @@ class UserStats
         }
 
         return [
-            'authenticated_users' => (int) ($totals?->users ?? 0),
+            'authenticated_users' => $users,
             'total_requests' => (int) ($totals?->total ?? 0),
             'authenticated_requests' => (int) ($totals?->authenticated ?? 0),
             'guest_requests' => (int) ($totals?->guest ?? 0),
@@ -86,7 +94,7 @@ class UserStats
 
     /**
      * @return list<array{
-     *   id:string, email:string|null, name:string|null,
+     *   id:string, environment: array{slug:string, name:string}, email:string|null, name:string|null,
      *   requests_total:int, requests_2xx:int, requests_4xx:int, requests_5xx:int,
      *   queued_jobs:int, exceptions:int, last_seen:string|null
      * }>
@@ -99,36 +107,47 @@ class UserStats
             ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('occurred_at', [$range->from, $range->to])
-            ->selectRaw('user_identifier AS id, MAX(user_email) AS email, MAX(user_name) AS name')
+            ->selectRaw('environment_id, user_identifier AS id, MAX(user_email) AS email, MAX(user_name) AS name')
             ->selectRaw('COUNT(*) AS requests_total')
             ->selectRaw('SUM(CASE WHEN status_code < 400 THEN 1 ELSE 0 END) AS requests_2xx')
             ->selectRaw('SUM(CASE WHEN status_code >= 400 AND status_code < 500 THEN 1 ELSE 0 END) AS requests_4xx')
             ->selectRaw('SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END) AS requests_5xx')
             ->selectRaw('MAX(occurred_at) AS last_seen')
-            ->groupBy('user_identifier')
-            ->get()
-            ->keyBy('id');
+            ->groupBy('environment_id', 'user_identifier')
+            ->get();
 
         $jobs = QueueJobRun::query()
             ->where('project_id', $project->id)
             ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('dispatched_at', [$range->from, $range->to])
-            ->selectRaw('user_identifier AS id, COUNT(*) AS queued_jobs')
-            ->groupBy('user_identifier')
-            ->pluck('queued_jobs', 'id');
+            ->selectRaw('environment_id, user_identifier AS id, COUNT(*) AS queued_jobs')
+            ->groupBy('environment_id', 'user_identifier')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [$row->environment_id.'|'.$row->id => (int) $row->queued_jobs]);
 
         $errors = ErrorOccurrence::query()
             ->where('project_id', $project->id)
             ->tap($environments->apply(...))
             ->whereNotNull('user_identifier')
             ->whereBetween('occurred_at', [$range->from, $range->to])
-            ->selectRaw('user_identifier AS id, COUNT(*) AS exceptions')
-            ->groupBy('user_identifier')
-            ->pluck('exceptions', 'id');
+            ->selectRaw('environment_id, user_identifier AS id, COUNT(*) AS exceptions')
+            ->groupBy('environment_id', 'user_identifier')
+            ->get()
+            ->mapWithKeys(fn ($row): array => [$row->environment_id.'|'.$row->id => (int) $row->exceptions]);
+
+        $projectEnvironments = $project->environments->keyBy('id');
 
         $rows = [];
-        foreach ($trace as $id => $row) {
+        foreach ($trace as $row) {
+            $environment = $projectEnvironments->get($row->environment_id);
+
+            // An environment that is being deleted has no page to link the user to.
+            if ($environment === null) {
+                continue;
+            }
+
+            $key = $row->environment_id.'|'.$row->id;
             $name = $row->name !== null ? (string) $row->name : null;
             $email = $row->email !== null ? (string) $row->email : null;
 
@@ -141,15 +160,16 @@ class UserStats
             }
 
             $rows[] = [
-                'id' => (string) $id,
+                'id' => (string) $row->id,
+                'environment' => ['slug' => $environment->slug, 'name' => $environment->name],
                 'email' => $email,
                 'name' => $name,
                 'requests_total' => (int) $row->requests_total,
                 'requests_2xx' => (int) $row->requests_2xx,
                 'requests_4xx' => (int) $row->requests_4xx,
                 'requests_5xx' => (int) $row->requests_5xx,
-                'queued_jobs' => (int) ($jobs[$id] ?? 0),
-                'exceptions' => (int) ($errors[$id] ?? 0),
+                'queued_jobs' => $jobs[$key] ?? 0,
+                'exceptions' => $errors[$key] ?? 0,
                 'last_seen' => $row->last_seen !== null ? CarbonImmutable::parse($row->last_seen)->toIso8601String() : null,
             ];
         }
@@ -161,7 +181,7 @@ class UserStats
 
     /**
      * @return array{
-     *   id:string, email:string|null, name:string|null, last_seen:string|null,
+     *   id:string, environment: array{slug:string, name:string}, email:string|null, name:string|null, last_seen:string|null,
      *   summary: array{total:int, success:int, client_error:int, server_error:int},
      *   request_buckets: list<array{bucket:string,success:int,client_error:int,server_error:int}>,
      *   top_routes: list<array{method:string,uri:string,count:int}>,
@@ -170,19 +190,19 @@ class UserStats
      *   recent_requests: list<array{id:string,method:string,uri:string,status_code:int|null,duration_ms:int|null,occurred_at:string|null}>
      * }|null
      */
-    public function detail(Project $project, string $userIdentifier, TimeRange $range, EnvironmentFilter $environments): ?array
+    public function detail(Project $project, Environment $environment, string $userIdentifier, TimeRange $range): ?array
     {
         $base = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
-            ->tap($environments->apply(...))
+            ->where('environment_id', $environment->id)
             ->where('user_identifier', $userIdentifier)
             ->whereBetween('occurred_at', [$range->from, $range->to]);
 
         $profile = Trace::query()
             ->excludingStubs()
             ->where('project_id', $project->id)
-            ->tap($environments->apply(...))
+            ->where('environment_id', $environment->id)
             ->where('user_identifier', $userIdentifier)
             ->orderByDesc('occurred_at')
             ->first(['user_identifier', 'user_email', 'user_name', 'occurred_at']);
@@ -267,7 +287,7 @@ class UserStats
 
         $topJobs = QueueJobRun::query()
             ->where('project_id', $project->id)
-            ->tap($environments->apply(...))
+            ->where('environment_id', $environment->id)
             ->where('user_identifier', $userIdentifier)
             ->whereBetween('dispatched_at', [$range->from, $range->to])
             ->selectRaw('job_class, COUNT(*) AS count')
@@ -297,6 +317,7 @@ class UserStats
 
         return [
             'id' => (string) $profile->user_identifier,
+            'environment' => ['slug' => $environment->slug, 'name' => $environment->name],
             'email' => $profile->user_email !== null ? (string) $profile->user_email : null,
             'name' => $profile->user_name !== null ? (string) $profile->user_name : null,
             'last_seen' => $profile->occurred_at?->toIso8601String(),

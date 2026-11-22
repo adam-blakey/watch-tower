@@ -40,6 +40,7 @@ type RequestBucket = {
 
 type UserDetail = {
     id: string;
+    environment: { slug: string; name: string };
     email: string | null;
     name: string | null;
     last_seen: string | null;
@@ -113,8 +114,10 @@ function InfoCard({
     slug: string;
     range: string;
 }) {
-    const filterByUser = { query: { user_id: user.id, range } };
-    const filterByLogUser = { query: { user: user.id, range } };
+    // User ids are only unique within an environment, so every filter stays in this user's.
+    const env = [user.environment.slug];
+    const filterByUser = { query: { user_id: user.id, range, env } };
+    const filterByLogUser = { query: { user: user.id, range, env } };
 
     return (
         <Card>
@@ -131,6 +134,10 @@ function InfoCard({
                         value={
                             <span className="font-mono text-xs">{user.id}</span>
                         }
+                    />
+                    <InfoRow
+                        label="Environment"
+                        value={user.environment.name}
                     />
                     <InfoRow label="Name" value={user.name ?? '—'} />
                     <InfoRow
@@ -159,15 +166,15 @@ function InfoCard({
                     <FilterChip
                         icon={Workflow}
                         label="Jobs"
-                        href={jobsRoutes.index(slug, { query: { range } }).url}
+                        href={
+                            jobsRoutes.index(slug, { query: { range, env } })
+                                .url
+                        }
                     />
                     <FilterChip
                         icon={Bug}
                         label="Exceptions"
-                        href={
-                            exceptionsRoutes.index(slug, { query: { range } })
-                                .url
-                        }
+                        href={exceptionsRoutes.index(slug, filterByUser).url}
                     />
                     <FilterChip
                         icon={FileText}

@@ -20,6 +20,7 @@ import {
 } from 'recharts';
 
 import { PageHeader } from '@/components/page-header';
+import { badgeVariants } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
@@ -50,6 +51,7 @@ type Summary = {
 
 type UserRow = {
     id: string;
+    environment: { slug: string; name: string };
     email: string | null;
     name: string | null;
     requests_total: number;
@@ -87,6 +89,8 @@ export default function UsersIndex({
 }: Props) {
     const { props } = usePage<SharedProps>();
     const slug = props.currentProject?.slug ?? '';
+    const hasManyEnvironments =
+        (props.currentProject?.environments.length ?? 0) > 1;
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [sortKey, setSortKey] = useState<SortKey>('requests_total');
@@ -275,9 +279,12 @@ export default function UsersIndex({
                                 ) : (
                                     sorted.map((row) => (
                                         <UserRowTr
-                                            key={row.id}
+                                            key={`${row.environment.slug}|${row.id}`}
                                             row={row}
                                             slug={slug}
+                                            showEnvironment={
+                                                hasManyEnvironments
+                                            }
                                             range={selectedRange}
                                         />
                                     ))
@@ -294,13 +301,17 @@ export default function UsersIndex({
 function UserRowTr({
     row,
     slug,
+    showEnvironment,
     range,
 }: {
     row: UserRow;
     slug: string;
+    showEnvironment: boolean;
     range: string;
 }) {
-    const href = usersRoutes.show([slug, row.id], { query: { range } }).url;
+    const href = usersRoutes.show([slug, row.environment.slug, row.id], {
+        query: { range },
+    }).url;
 
     return (
         <TableRow className="cursor-pointer hover:bg-muted/50">
@@ -315,6 +326,16 @@ function UserRowTr({
                     <span className="font-mono text-xs text-muted-foreground">
                         {row.email ?? row.id}
                     </span>
+                    {showEnvironment && (
+                        <span
+                            className={cn(
+                                badgeVariants({ variant: 'muted' }),
+                                'text-[10px]',
+                            )}
+                        >
+                            {row.environment.name}
+                        </span>
+                    )}
                 </Link>
             </TableCell>
             <NumericCell

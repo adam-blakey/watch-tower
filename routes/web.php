@@ -132,7 +132,7 @@ Route::middleware(['auth', 'auth.session'])->group(function () {
                 ->name('http-client.show');
             Route::get('/logs', [LogsController::class, 'index'])->name('logs.index');
             Route::get('/users', [UsersController::class, 'index'])->name('users.index');
-            Route::get('/users/{user}', [UsersController::class, 'show'])
+            Route::get('/users/{environment:slug}/{user}', [UsersController::class, 'show'])
                 ->where('user', '[A-Za-z0-9_-]+')
                 ->name('users.show');
         });

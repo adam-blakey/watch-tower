@@ -35,6 +35,7 @@ function projectPageUrls(Project $project): array
     $parameters = fn (array $extra = []): array => ['project' => $slug, ...$extra];
 
     $firstIssue = ErrorGroup::query()->where('project_id', $project->id)->orderBy('display_number')->firstOrFail();
+    $userTrace = Trace::query()->where('project_id', $project->id)->whereNotNull('user_identifier')->firstOrFail(['environment_id', 'user_identifier']);
 
     return [
         'dashboard' => route('projects.dashboard', $parameters()),
@@ -62,7 +63,7 @@ function projectPageUrls(Project $project): array
         'logs' => route('projects.logs.index', $parameters()),
         'logs, filtered' => route('projects.logs.index', $parameters() + ['level' => 'error', 'search' => 'a']),
         'users' => route('projects.users.index', $parameters()),
-        'user' => route('projects.users.show', $parameters(['user' => (string) Trace::query()->where('project_id', $project->id)->whereNotNull('user_identifier')->value('user_identifier')])),
+        'user' => route('projects.users.show', $parameters(['environment' => Environment::findOrFail($userTrace->environment_id)->slug, 'user' => (string) $userTrace->user_identifier])),
     ];
 }
 
