@@ -88,7 +88,7 @@ class EventStore
         }
 
         $userIdentifier = $this->limitedString($data['user_id'] ?? null, 255);
-        $userDetails = $this->userDetails($project, $userIdentifier, $data);
+        $userDetails = $this->userDetails($project, $environmentId, $userIdentifier, $data);
 
         $values = [
             'environment_id' => $environmentId,
@@ -147,7 +147,7 @@ class EventStore
         }
 
         if ($userIdentifier !== null && $userDetails === []) {
-            $this->completeUserDetails(Trace::class, $project, $trace->id, $userIdentifier);
+            $this->completeUserDetails(Trace::class, $project, $environmentId, $trace->id, $userIdentifier);
         }
     }
 
@@ -222,7 +222,7 @@ class EventStore
         $line = $this->unsignedIntOrNull($data['line'] ?? null);
         $occurredAt = $this->parseTimestamp($data['occurred_at'] ?? null);
         $userIdentifier = $this->limitedString($data['user_id'] ?? null, 255);
-        $userDetails = $this->userDetails($project, $userIdentifier, $data);
+        $userDetails = $this->userDetails($project, $environmentId, $userIdentifier, $data);
         $isHandled = filter_var($data['is_handled'] ?? $data['handled'] ?? false, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) ?? false;
         $languageVersion = $this->limitedString($data['language_version'] ?? null, 50);
         $frameworkVersion = $this->limitedString($data['framework_version'] ?? null, 50);
@@ -305,7 +305,7 @@ class EventStore
         }
 
         if ($userIdentifier !== null && $userDetails === []) {
-            $this->completeUserDetails(ErrorOccurrence::class, $project, $occurrence->id, $userIdentifier);
+            $this->completeUserDetails(ErrorOccurrence::class, $project, $environmentId, $occurrence->id, $userIdentifier);
         }
     }
 
@@ -681,7 +681,7 @@ class EventStore
     }
 
     /**
-     * Persist the name and email of an end user, and hand them to the traces and errors that were stored without.
+     * Persist the name and email of an end user of one environment, and hand them to the traces and errors that were stored without.
      *
      * A `user` record is sent just before the `request` record it belongs to, but the two are processed by
      * independent queue jobs, so either can win. The two jobs cover each other: whichever comes second fills the
@@ -709,8 +709,8 @@ class EventStore
         $seenAt = $this->parseTimestamp($data['occurred_at'] ?? null);
 
         $user = EndUser::firstOrCreate(
-            ['project_id' => $project->id, 'identifier' => $identifier],
-            ['environment_id' => $environmentId, 'name' => $name, 'email' => $email, 'last_seen_at' => $seenAt],
+            ['project_id' => $project->id, 'environment_id' => $environmentId, 'identifier' => $identifier],
+            ['name' => $name, 'email' => $email, 'last_seen_at' => $seenAt],
         );
 
         if (! $user->wasRecentlyCreated) {
@@ -731,6 +731,7 @@ class EventStore
 
         foreach ([Trace::class, ErrorOccurrence::class] as $model) {
             $model::where('project_id', $project->id)
+                ->where('environment_id', $environmentId)
                 ->where('user_identifier', $identifier)
                 ->whereNull('user_name')
                 ->whereNull('user_email')
@@ -748,13 +749,13 @@ class EventStore
      * @param  array<string, mixed>  $data
      * @return array{user_name?: string, user_email?: string}
      */
-    private function userDetails(Project $project, ?string $userIdentifier, array $data): array
+    private function userDetails(Project $project, string $environmentId, ?string $userIdentifier, array $data): array
     {
         $name = $this->limitedString($data['user_name'] ?? null, 255);
         $email = $this->limitedString($data['user_email'] ?? null, 255);
 
         if ($userIdentifier !== null && $name === null && $email === null) {
-            $user = EndUser::where('project_id', $project->id)->where('identifier', $userIdentifier)->first();
+            $user = EndUser::where('project_id', $project->id)->where('environment_id', $environmentId)->where('identifier', $userIdentifier)->first();
 
             $name = $user?->name;
             $email = $user?->email;
@@ -775,9 +776,9 @@ class EventStore
      *
      * @param  class-string<Trace|ErrorOccurrence>  $model
      */
-    private function completeUserDetails(string $model, Project $project, string $rowId, string $userIdentifier): void
+    private function completeUserDetails(string $model, Project $project, string $environmentId, string $rowId, string $userIdentifier): void
     {
-        $user = EndUser::where('project_id', $project->id)->where('identifier', $userIdentifier)->first();
+        $user = EndUser::where('project_id', $project->id)->where('environment_id', $environmentId)->where('identifier', $userIdentifier)->first();
 
         if ($user === null) {
             return;
